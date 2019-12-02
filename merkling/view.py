@@ -119,7 +119,7 @@ class BasicView(View, metaclass=BasicTypeBase):
 
 class ListType(SubtreeType):
     def depth(cls) -> int:
-        return get_depth(cls.limit())
+        return get_depth(cls.limit()) + 1  # 1 extra for length mix-in
 
     def element_type(cls) -> TypeBase:
         raise NotImplementedError
@@ -155,7 +155,29 @@ class List(SubtreeView, metaclass=ListType):
         ll = cast(Uint64, Uint64.view_from_backing(node=ll_node, hook=None))
         return int(ll)
 
-    # TODO: implement append/pop
+    def append(self, v: View):
+        ll = self.length()
+        if ll >= self.__class__.limit():
+            raise Exception("list is maximum capacity, cannot append")
+        anchor = 1 << self.__class__.depth()
+        set_last = self.get_backing().expand_into(Gindex(anchor | ll))
+        next_backing = set_last(v.get_backing())
+        set_length = next_backing.setter(Gindex(3))
+        new_length = Uint64(ll + 1).get_backing()
+        next_backing = set_length(new_length)
+        self.set_backing(next_backing)
+
+    def pop(self):
+        ll = self.length()
+        if ll == 0:
+            raise Exception("list is empty, cannot pop")
+        anchor = 1 << self.__class__.depth()
+        set_last = self.get_backing().expand_into(Gindex(anchor | (ll - 1)))
+        next_backing = set_last(zero_node(0))
+        set_length = next_backing.setter(Gindex(3))
+        new_length = Uint64(ll - 1).get_backing()
+        next_backing = set_length(new_length)
+        self.set_backing(next_backing)
 
     def get(self, i: int) -> View:
         if i > self.length():
@@ -259,15 +281,21 @@ class Container(SubtreeView, metaclass=ContainerType):
         if item.startswith('_'):
             return super().__getattribute__(item)
         else:
-            i = self.__class__.fields().keys.index(item)
-            return super().get(i)
+            keys = self.__class__.fields().keys
+            if item in keys:
+                return super().get(keys.index(item))
+            else:
+                return super().__getattribute__(item)
 
     def __setattr__(self, key, value):
         if key.startswith('_'):
             super().__setattr__(key, value)
         else:
-            i = self.__class__.fields().keys.index(key)
-            super().set(i, value)
+            keys = self.__class__.fields().keys
+            if key in keys:
+                super().set(keys.index(key), value)
+            else:
+                super().__setattr__(key, value)
 
 
 class Bytes32Type(TypeBase, metaclass=TypeDef):
@@ -353,3 +381,29 @@ registry = Registry()
 print(registry)
 print(registry.get_backing().merkle_root(merkle_hash).hex())
 print(registry.length())
+
+val1 = Validator()
+print(val1)
+registry.append(val1)
+print(registry)
+print(registry.get_backing().merkle_root(merkle_hash).hex())
+print(registry.length())
+
+for i in range(100000):
+    registry.append(val1)
+
+print(registry)
+print(registry.get_backing().merkle_root(merkle_hash).hex())
+print(registry.length())
+
+import time
+
+N = 1000
+start = time.time()
+for i in range(N):
+    registry.append(val1)
+    registry.get_backing().merkle_root(merkle_hash)
+
+end = time.time()
+delta = end - start
+print(f"ops: {N}, time: {delta} seconds  ms/op: {(delta / N) / 1000}")
