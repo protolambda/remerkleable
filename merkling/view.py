@@ -414,9 +414,9 @@ import time
 N = 1000
 start = time.time()
 for i in range(N):
-    registry.append(val1)
+    registry.append(Validator())
     registry.get_backing().merkle_root(merkle_hash)
 
 end = time.time()
 delta = end - start
-print(f"ops: {N}, time: {delta} seconds  ms/op: {(delta / N) / 1000}")
+print(f"ops: {N}, time: {delta} seconds  ms/op: {(delta / N) * 1000}")
