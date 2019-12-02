@@ -132,6 +132,9 @@ class VectorType(SubtreeType):
         elem = cls.element_type().default_node()
         return subtree_fill_to_length(elem, cls.depth(), cls.length())
 
+    def __repr__(self):
+        return f"Vector[{self.element_type()}, {self.length()}]"
+
     def __getitem__(self, params):
         (element_type, length) = params
 
@@ -165,8 +168,11 @@ class Uint64Type(BasicTypeBase, metaclass=BasicTypeDef):
     def byte_length(mcs) -> int:
         return 8
 
+    def __repr__(self):
+        return "Uint64"
 
-class Uint64View(int, BasicView, metaclass=Uint64Type):
+
+class Uint64(int, BasicView, metaclass=Uint64Type):
     pass
 
 
@@ -183,60 +189,61 @@ class ContainerType(SubtreeType):
         raise NotImplementedError
 
     def default_node(cls) -> Node:
-        print(cls.fields().types)
         return subtree_fill_to_contents([field.default_node() for field in cls.fields().types], cls.depth())
+
+    def __repr__(self):
+        return f"{self.__name__}(Container)\n" + '\n'.join(
+            ('  ' + fkey + ': ' + repr(ftype)) for fkey, ftype in zip(self.fields().keys, self.fields().types))
 
 
 class Container(SubtreeView, metaclass=ContainerType):
 
-    def __init__(self, *args, **kw):
-        annot = self.__class__.__annotations__
-        self.__class__._fields = Fields(keys=list(annot.keys()), types=[v for v in annot.values()])
-        super().__init__(*args, **kw)
-
     @classmethod
     def fields(cls) -> Fields:
+        if not hasattr(cls, '_fields'):
+            annot = cls.__annotations__
+            cls._fields = Fields(keys=list(annot.keys()), types=[v for v in annot.values()])
         return cls._fields
 
     def __getattribute__(self, item):
         if item.startswith('_'):
             return super().__getattribute__(item)
         else:
-            i = self.__class__._fields.keys.index(item)
+            i = self.__class__.fields().keys.index(item)
             return super().get(i)
 
     def __setattr__(self, key, value):
         if key.startswith('_'):
             super().__setattr__(key, value)
         else:
-            i = self.__class__._fields.keys.index(key)
+            i = self.__class__.fields().keys.index(key)
             super().set(i, value)
 
 
 class TestCon(Container):
-    foo: Uint64View
-    bar: Vector[Uint64View, 4]
+    foo: Uint64
+    bar: Vector[Uint64, 4]
 
 
-print(Uint64View.default_node())
-print(Vector[Uint64View, 4].default_node())
+print(Uint64.default_node())
+print(Vector[Uint64, 5].default_node())
 
 a = TestCon
 print(a)
 b = a()
 print(b)
 
-SimpleVec = Vector[Uint64View, 512]
+SimpleVec = Vector[Uint64, 512]
 print(SimpleVec)
 data: Vector = SimpleVec()
 print(data)
 print(data.get_backing().merkle_root(merkle_hash).hex())
-data.set(1, Uint64View(123))
+data.set(1, Uint64(123))
 print(data.get_backing().merkle_root(merkle_hash).hex())
-data.set(10, Uint64View(42))
+data.set(10, Uint64(42))
 print(data.get_backing().merkle_root(merkle_hash).hex())
-data.set(1, Uint64View(0))
+data.set(1, Uint64(0))
 print(data.get_backing().merkle_root(merkle_hash).hex())
-data.set(10, Uint64View(0))
+data.set(10, Uint64(0))
 print(data.get_backing().merkle_root(merkle_hash).hex())
 

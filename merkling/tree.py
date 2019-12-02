@@ -159,6 +159,8 @@ class Commit(Node):
         self.root = h(self.left.merkle_root(h), self.right.merkle_root(h))
         return self.root
 
+    def __repr__(self) -> str:
+        return f"H({self.left}, {self.right})"
 
 def subtree_fill_to_depth(bottom: Node, depth: int) -> Node:
     node = bottom
@@ -240,3 +242,6 @@ class RootNode(Node):
 
     def merkle_root(self, h: MerkleFn) -> "Root":
         return self.root
+
+    def __repr__(self):
+        return f"0x{self.root.hex()}"
