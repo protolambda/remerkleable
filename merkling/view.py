@@ -65,11 +65,15 @@ class SubtreeType(BackedType):
     def depth(cls):
         raise NotImplementedError
 
+    def item_elem_type(self, i: int) -> TypeBase:
+        raise NotImplementedError
+
 
 class SubtreeView(BackedView, metaclass=SubtreeType):
 
     def get(self, i: int) -> View:
-        return self.__class__.__class__.view_from_backing(
+        elem_type = self.__class__.item_elem_type(i)
+        return elem_type.view_from_backing(
             self.get_backing().getter(to_gindex(i, self.__class__.depth())), lambda v: self.set(i, v))
 
     def set(self, i: int, v: View) -> None:
@@ -123,6 +127,9 @@ class ListType(SubtreeType):
 
     def element_type(cls) -> TypeBase:
         raise NotImplementedError
+
+    def item_elem_type(cls, i: int) -> TypeBase:
+        return cls.element_type()
 
     def limit(cls) -> int:
         raise NotImplementedError
@@ -197,6 +204,9 @@ class VectorType(SubtreeType):
     def element_type(cls) -> TypeBase:
         raise NotImplementedError
 
+    def item_elem_type(cls, i: int) -> TypeBase:
+        return cls.element_type()
+
     def length(cls) -> int:
         raise NotImplementedError
 
@@ -256,6 +266,9 @@ class Fields(NamedTuple):
 class ContainerType(SubtreeType):
     def depth(cls) -> int:
         return get_depth(len(cls.fields().keys))
+
+    def item_elem_type(cls, i: int) -> TypeBase:
+        return cls.fields().types[i]
 
     def fields(cls) -> Fields:
         raise NotImplementedError
