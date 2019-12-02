@@ -1,5 +1,5 @@
-from typing import Callable, NewType, Optional, Sequence, NamedTuple
-from merkling.tree import Link, Node, Root, RootNode, subtree_fill_to_length, subtree_fill_to_contents, to_gindex, zero_node, merkle_hash
+from typing import Callable, NewType, Optional, Sequence, NamedTuple, cast
+from merkling.tree import Link, Node, Root, RootNode, subtree_fill_to_length, subtree_fill_to_contents, to_gindex, zero_node, merkle_hash, Gindex, Commit
 
 
 # Get the depth required for a given element count
@@ -24,7 +24,6 @@ class TypeBase(type, metaclass=TypeDef):
 
 
 class View(object, metaclass=TypeBase):
-
     def get_backing(self) -> Node:
         raise NotImplementedError
 
@@ -118,6 +117,57 @@ class BasicView(View, metaclass=BasicTypeBase):
         raise Exception("cannot change the backing of a basic view")
 
 
+class ListType(SubtreeType):
+    def depth(cls) -> int:
+        return get_depth(cls.limit())
+
+    def element_type(cls) -> TypeBase:
+        raise NotImplementedError
+
+    def limit(cls) -> int:
+        raise NotImplementedError
+
+    def default_node(cls) -> Node:
+        return Commit(zero_node(get_depth(cls.limit())), zero_node(0))
+
+    def __repr__(self):
+        return f"List[{self.element_type()}, {self.limit()}]"
+
+    def __getitem__(self, params):
+        (element_type, limit) = params
+
+        class SpecialListType(ListType):
+            def element_type(cls) -> TypeBase:
+                return element_type
+
+            def limit(cls) -> int:
+                return limit
+
+        class SpecialListView(List, metaclass=SpecialListType):
+            pass
+
+        return SpecialListView
+
+
+class List(SubtreeView, metaclass=ListType):
+    def length(self) -> int:
+        ll_node = super().get_backing().getter(Gindex(3))
+        ll = cast(Uint64, Uint64.view_from_backing(node=ll_node, hook=None))
+        return int(ll)
+
+    # TODO: implement append/pop
+
+    def get(self, i: int) -> View:
+        if i > self.length():
+            raise IndexError
+        return super().get(i)
+
+    def set(self, i: int, v: View) -> None:
+        if i > self.length():
+            raise IndexError
+        super().set(i, v)
+
+
 class VectorType(SubtreeType):
     def depth(cls) -> int:
         return get_depth(cls.length())
@@ -193,7 +243,7 @@ class ContainerType(SubtreeType):
 
     def __repr__(self):
         return f"{self.__name__}(Container)\n" + '\n'.join(
-            ('  ' + fkey + ': ' + repr(ftype)) for fkey, ftype in zip(self.fields().keys, self.fields().types))
+            ('  ' + fkey + ': ' + repr(ftype)) for fkey, ftype in zip(self.fields().keys, self.fields().types)) + '\n'
 
 
 class Container(SubtreeView, metaclass=ContainerType):
@@ -220,18 +270,62 @@ class Container(SubtreeView, metaclass=ContainerType):
             super().set(i, value)
 
 
-class TestCon(Container):
-    foo: Uint64
-    bar: Vector[Uint64, 4]
+class Bytes32Type(TypeBase, metaclass=TypeDef):
+    def default_node(self) -> Node:
+        return zero_node(0)
+
+    def view_from_backing(cls, node: Node, hook: Optional["ViewHook"]) -> "View":
+        if isinstance(node, RootNode):
+            return Bytes32(node.root)
+        else:
+            raise Exception("cannot create root view from composite node!")
+
+    def __repr__(self):
+        return "Bytes32"
 
 
+class Bytes32(bytes, View, metaclass=Bytes32Type):
+    def __new__(cls, *args, **kwargs):
+        if len(args) == 0:
+            return super().__new__(cls, b"\x00" * 32, **kwargs)
+
+    def get_backing(self) -> Node:
+        return RootNode(Root(self))
+
+    def set_backing(self, value):
+        raise Exception("cannot change the backing of a root view")
+
+    def __repr__(self):
+        return "0x" + self.hex()
+
+    def __str__(self):
+        return "0x" + self.hex()
+
+
+class Validator(Container):
+    pubkey: Bytes32 # TODO basic vec type for bytes48
+    withdrawal_credentials: Bytes32  # Commitment to pubkey for withdrawals
+    effective_balance: Uint64  # Balance at stake
+    slashed: Bytes32 # todo
+    # Status epochs
+    activation_eligibility_epoch: Uint64  # When criteria for activation were met
+    activation_epoch: Uint64
+    exit_epoch: Uint64
+    withdrawable_epoch: Uint64  # When validator can withdraw funds
+
+
+print(Bytes32.default_node())
 print(Uint64.default_node())
 print(Vector[Uint64, 5].default_node())
+print(List[Uint64, 5].default_node())
 
-a = TestCon
+a = Validator
 print(a)
 b = a()
 print(b)
+
+print(Bytes32)
+print(Bytes32())
 
 SimpleVec = Vector[Uint64, 512]
 print(SimpleVec)
@@ -247,3 +341,15 @@ print(data.get_backing().merkle_root(merkle_hash).hex())
 data.set(10, Uint64(0))
 print(data.get_backing().merkle_root(merkle_hash).hex())
 
+SimpleList = List[Uint64, 512]
+print(SimpleList)
+foo: List = SimpleList()
+print(foo)
+print(foo.get_backing().merkle_root(merkle_hash).hex())
+
+Registry = List[Validator, 2**40]
+print(Registry)
+registry = Registry()
+print(registry)
+print(registry.get_backing().merkle_root(merkle_hash).hex())
+print(registry.length())
