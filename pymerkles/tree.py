@@ -22,8 +22,8 @@ MerkleFn = NewType("MerkleFn", Callable[[Root, Root], Root])
 ZERO_ROOT: Root = Root(b'\x00' * 32)
 
 
-def merkle_hash(l: Root, r: Root):
-    return sha256(l + r).digest()
+def merkle_hash(left: Root, right: Root):
+    return sha256(left + right).digest()
 
 
 class Node(object):
@@ -92,7 +92,7 @@ class Commit(Node):
             return self.right
         anchor = get_anchor_gindex(target)
         pivot = anchor >> 1
-        if target < pivot:
+        if target < (target | pivot):
             if self.left is None:
                 raise InvalidTreeError
             return self.left.getter(Gindex(target ^ anchor | pivot))
@@ -112,7 +112,7 @@ class Commit(Node):
             return self.rebind_right
         anchor = get_anchor_gindex(target)
         pivot = anchor >> 1
-        if target < pivot:
+        if target < (target | pivot):
             if self.left is None:
                 raise InvalidTreeError
             inner = self.left.setter(Gindex(target ^ anchor | pivot))
@@ -140,7 +140,7 @@ class Commit(Node):
             return self.rebind_right
         anchor = get_anchor_gindex(target)
         pivot = anchor >> 1
-        if target < pivot:
+        if target < (target | pivot):
             if self.left is None:
                 raise InvalidTreeError
             inner = self.left.expand_into(Gindex(target ^ anchor | pivot))
@@ -161,6 +161,7 @@ class Commit(Node):
 
     def __repr__(self) -> str:
         return f"H({self.left}, {self.right})"
+
 
 def subtree_fill_to_depth(bottom: Node, depth: int) -> Node:
     node = bottom
