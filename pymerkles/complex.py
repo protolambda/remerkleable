@@ -1,33 +1,8 @@
-from pymerkles.core import TypeBase, View, BackedType, BackedView
-from pymerkles.basic import uint256
 from typing import Sequence, NamedTuple, cast
-from pymerkles.tree import Link, Node, subtree_fill_to_length, subtree_fill_to_contents, to_gindex, zero_node, Gindex, Commit
-
-
-# Get the depth required for a given element count
-# (in out): (0 0), (1 1), (2 1), (3 2), (4 2), (5 3), (6 3), (7 3), (8 3), (9 4)
-def get_depth(elem_count: int) -> int:
-    return (elem_count - 1).bit_length()
-
-
-class SubtreeType(BackedType):
-    def depth(cls):
-        raise NotImplementedError
-
-    def item_elem_type(self, i: int) -> TypeBase:
-        raise NotImplementedError
-
-
-class SubtreeView(BackedView, metaclass=SubtreeType):
-
-    def get(self, i: int) -> View:
-        elem_type = self.__class__.item_elem_type(i)
-        return elem_type.view_from_backing(
-            self.get_backing().getter(to_gindex(i, self.__class__.depth())), lambda v: self.set(i, v))
-
-    def set(self, i: int, v: View) -> None:
-        setter_link: Link = self.get_backing().setter(to_gindex(i, self.__class__.depth()))
-        self.set_backing(setter_link(v.get_backing()))
+from pymerkles.core import TypeBase, View
+from pymerkles.basic import uint256
+from pymerkles.tree import Node, subtree_fill_to_length, subtree_fill_to_contents, zero_node, Gindex, Commit, to_gindex
+from pymerkles.subtree import SubtreeType, SubtreeView, get_depth
 
 
 class ListType(SubtreeType):
@@ -44,7 +19,7 @@ class ListType(SubtreeType):
         raise NotImplementedError
 
     def default_node(cls) -> Node:
-        return Commit(zero_node(get_depth(cls.limit())), zero_node(0))
+        return Commit(zero_node(get_depth(cls.limit())), zero_node(0))  # mix-in 0 as list length
 
     def __repr__(self):
         return f"List[{self.element_type()}, {self.limit()}]"
@@ -75,8 +50,8 @@ class List(SubtreeView, metaclass=ListType):
         ll = self.length()
         if ll >= self.__class__.limit():
             raise Exception("list is maximum capacity, cannot append")
-        anchor = 1 << self.__class__.depth()
-        set_last = self.get_backing().expand_into(Gindex(anchor | ll))
+        target: Gindex = to_gindex(ll, self.__class__.depth())
+        set_last = self.get_backing().expand_into(target)
         next_backing = set_last(v.get_backing())
         set_length = next_backing.setter(Gindex(3))
         new_length = uint256(ll + 1).get_backing()
@@ -87,9 +62,20 @@ class List(SubtreeView, metaclass=ListType):
         ll = self.length()
         if ll == 0:
             raise Exception("list is empty, cannot pop")
-        anchor = 1 << self.__class__.depth()
-        set_last = self.get_backing().expand_into(Gindex(anchor | (ll - 1)))
+        target: Gindex = to_gindex(ll - 1, self.__class__.depth())
+        set_last = self.get_backing().setter(target)
         next_backing = set_last(zero_node(0))
+
+        # if possible, summarize
+        can_summarize = (target & 1) == 0
+        if can_summarize:
+            # summarize to the highest node possible.
+            # I.e. the resulting target must be a right-hand, unless it's the only content node.
+            while (target & 1) == 0 and target != 0b10:
+                target >>= 1
+            summary_fn = next_backing.summarize_into(target)
+            next_backing = summary_fn()
+
         set_length = next_backing.setter(Gindex(3))
         new_length = uint256(ll - 1).get_backing()
         next_backing = set_length(new_length)

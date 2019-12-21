@@ -59,10 +59,41 @@ print(registry.length())
 
 val1 = Validator()
 print(val1)
-registry.append(val1)
-print(registry)
-print(registry.get_backing().merkle_root(merkle_hash).hex())
-print(registry.length())
+
+
+def do_append():
+    print("appending!")
+    registry.append(val1)
+    print(registry)
+    print(registry.get_backing().merkle_root(merkle_hash).hex())
+    print(registry.length())
+
+
+def do_pop():
+    print("popping!")
+    registry.pop()
+    print(registry)
+    print(registry.get_backing().merkle_root(merkle_hash).hex())
+    print(registry.length())
+
+
+do_append()
+do_pop()
+do_append()
+do_append()
+do_pop()
+do_pop()
+do_append()
+do_append()
+do_append()
+do_append()
+do_pop()
+do_append()
+do_pop()
+do_pop()
+do_pop()
+
+print("----")
 
 for i in range(1000):
     registry.append(val1)

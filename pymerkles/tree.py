@@ -37,6 +37,15 @@ class Node(object):
     def expand_into(self, target: Gindex) -> "Link":
         raise NotImplementedError
 
+    def summarize_into(self, target: Gindex) -> "SummaryLink":
+        setter = self.setter(target)
+
+        def summary() -> "Node":
+            summary_root = self.getter(target).merkle_root(merkle_hash)
+            return setter(RootNode(summary_root))
+
+        return summary
+
     def merkle_root(self, h: MerkleFn) -> "Root":
         raise NotImplementedError
 
@@ -53,6 +62,8 @@ def zero_node(depth: int) -> "RootNode":
 
 
 Link = NewType("Link", Callable[[Node], Node])
+
+SummaryLink = NewType("SummaryLink", Callable[[], Node])
 
 
 def identity(v: Node) -> Node:
@@ -238,7 +249,7 @@ class RootNode(Node):
             raise NavigationError
         if target == 1:
             return identity
-        child = zero_node(target.bit_length() - 1)
+        child = zero_node(target.bit_length() - 2)
         return Commit(child, child).expand_into(target)
 
     def merkle_root(self, h: MerkleFn) -> "Root":
