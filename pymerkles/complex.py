@@ -6,6 +6,9 @@ from pymerkles.subtree import SubtreeType, SubtreeView, get_depth
 
 
 class ListType(SubtreeType):
+    def is_packed(cls) -> bool:
+        raise NotImplementedError
+
     def contents_depth(cls) -> int:
         raise NotImplementedError
 
@@ -30,13 +33,18 @@ class ListType(SubtreeType):
     def __getitem__(self, params):
         (element_type, limit) = params
         contents_depth = 0
+        packed = False
         if isinstance(element_type, BasicTypeDef):
             elems_per_chunk = 32 // element_type.byte_length()
             contents_depth = get_depth((limit + elems_per_chunk - 1) // elems_per_chunk)
+            packed = True
         else:
             contents_depth = get_depth(limit)
 
         class SpecialListType(ListType):
+            def is_packed(cls) -> bool:
+                return packed
+
             def contents_depth(cls) -> int:
                 return contents_depth
 
@@ -62,6 +70,7 @@ class List(SubtreeView, metaclass=ListType):
         ll = self.length()
         if ll >= self.__class__.limit():
             raise Exception("list is maximum capacity, cannot append")
+        # TODO: support packing in append
         target: Gindex = to_gindex(ll, self.__class__.tree_depth())
         set_last = self.get_backing().expand_into(target)
         next_backing = set_last(v.get_backing())
@@ -74,6 +83,7 @@ class List(SubtreeView, metaclass=ListType):
         ll = self.length()
         if ll == 0:
             raise Exception("list is empty, cannot pop")
+        # TODO: support packing in pop
         target: Gindex = to_gindex(ll - 1, self.__class__.tree_depth())
         set_last = self.get_backing().setter(target)
         next_backing = set_last(zero_node(0))
@@ -105,6 +115,9 @@ class List(SubtreeView, metaclass=ListType):
 
 
 class VectorType(SubtreeType):
+    def is_packed(cls) -> bool:
+        raise NotImplementedError
+
     def tree_depth(cls) -> int:
         raise NotImplementedError
 
@@ -128,13 +141,18 @@ class VectorType(SubtreeType):
         (element_type, length) = params
 
         tree_depth = 0
+        packed = False
         if isinstance(element_type, BasicTypeDef):
             elems_per_chunk = 32 // element_type.byte_length()
             tree_depth = get_depth((length + elems_per_chunk - 1) // elems_per_chunk)
+            packed = True
         else:
             tree_depth = get_depth(length)
 
         class SpecialVectorType(VectorType):
+            def is_packed(cls) -> bool:
+                return packed
+
             def tree_depth(cls) -> int:
                 return tree_depth
 
