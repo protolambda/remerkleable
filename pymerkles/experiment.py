@@ -16,7 +16,6 @@ class Validator(Container):
     withdrawable_epoch: uint64  # When validator can withdraw funds
 
 
-
 print(Bytes32.default_node())
 print(uint64.default_node())
 print(Vector[uint64, 5].default_node())

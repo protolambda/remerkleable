@@ -9,10 +9,10 @@ def get_depth(elem_count: int) -> int:
 
 
 class SubtreeType(BackedType):
-    def is_packed(cls) -> bool:
+    def is_packed(self) -> bool:
         raise NotImplementedError
 
-    def tree_depth(cls) -> int:
+    def tree_depth(self) -> int:
         raise NotImplementedError
 
     def item_elem_type(self, i: int) -> TypeDef:
@@ -54,8 +54,9 @@ class SubtreeView(BackedView, metaclass=SubtreeType):
                 basic_elem_type: BasicTypeDef = elem_type
                 elems_per_chunk = 32 // basic_elem_type.byte_length()
                 chunk_i = i // elems_per_chunk
-                chunk_setter_link: Link = self.get_backing().setter(to_gindex(chunk_i, self.__class__.tree_depth()))
-                chunk = self.get_backing().getter(to_gindex(chunk_i, self.__class__.tree_depth()))
+                target = to_gindex(chunk_i, self.__class__.tree_depth())
+                chunk_setter_link: Link = self.get_backing().setter(target)
+                chunk = self.get_backing().getter(target)
                 if isinstance(chunk, RootNode):
                     new_chunk = basic_v.backing_from_base(chunk, i % elems_per_chunk)
                     self.set_backing(chunk_setter_link(new_chunk))

@@ -1,5 +1,5 @@
 from typing import Sequence, NamedTuple, cast
-from pymerkles.core import TypeBase, View, BasicTypeDef
+from pymerkles.core import TypeDef, TypeBase, View, BasicTypeDef, BasicTypeBase, BasicView
 from pymerkles.basic import uint256
 from pymerkles.tree import Node, subtree_fill_to_length, subtree_fill_to_contents, zero_node, Gindex, Commit, to_gindex
 from pymerkles.subtree import SubtreeType, SubtreeView, get_depth
@@ -15,10 +15,10 @@ class ListType(SubtreeType):
     def tree_depth(cls) -> int:
         return cls.contents_depth() + 1  # 1 extra for length mix-in
 
-    def element_type(cls) -> TypeBase:
+    def element_type(cls) -> TypeDef:
         raise NotImplementedError
 
-    def item_elem_type(cls, i: int) -> TypeBase:
+    def item_elem_type(cls, i: int) -> TypeDef:
         return cls.element_type()
 
     def limit(cls) -> int:
@@ -70,10 +70,33 @@ class List(SubtreeView, metaclass=ListType):
         ll = self.length()
         if ll >= self.__class__.limit():
             raise Exception("list is maximum capacity, cannot append")
-        # TODO: support packing in append
-        target: Gindex = to_gindex(ll, self.__class__.tree_depth())
-        set_last = self.get_backing().expand_into(target)
-        next_backing = set_last(v.get_backing())
+        i = ll
+        if self.__class__.is_packed():
+            next_backing = self.get_backing()
+            elem_type: TypeDef = self.__class__.element_type()
+            if isinstance(elem_type, BasicTypeDef):
+                if not isinstance(v, BasicView):
+                    raise Exception("input element is not a basic view")
+                basic_v: BasicView = v
+                basic_elem_type: BasicTypeDef = elem_type
+                elems_per_chunk = 32 // basic_elem_type.byte_length()
+                chunk_i = i // elems_per_chunk
+                target: Gindex = to_gindex(chunk_i, self.__class__.tree_depth())
+                if i % elems_per_chunk == 0:
+                    set_last = next_backing.expand_into(target)
+                    chunk = zero_node(0)
+                else:
+                    set_last = next_backing.setter(target)
+                    chunk = next_backing.getter(target)
+                chunk = basic_v.backing_from_base(chunk, i % elems_per_chunk)
+                next_backing = set_last(chunk)
+            else:
+                raise Exception("cannot append a packed element that is not a basic type")
+        else:
+            target: Gindex = to_gindex(i, self.__class__.tree_depth())
+            set_last = self.get_backing().expand_into(target)
+            next_backing = set_last(v.get_backing())
+
         set_length = next_backing.setter(Gindex(3))
         new_length = uint256(ll + 1).get_backing()
         next_backing = set_length(new_length)
@@ -83,13 +106,35 @@ class List(SubtreeView, metaclass=ListType):
         ll = self.length()
         if ll == 0:
             raise Exception("list is empty, cannot pop")
-        # TODO: support packing in pop
-        target: Gindex = to_gindex(ll - 1, self.__class__.tree_depth())
-        set_last = self.get_backing().setter(target)
-        next_backing = set_last(zero_node(0))
+        i = ll - 1
+        target: Gindex
+        can_summarize: bool
+        if self.__class__.is_packed():
+            next_backing = self.get_backing()
+            elem_type: TypeDef = self.__class__.element_type()
+            if isinstance(elem_type, BasicTypeDef):
+                basic_elem_type: BasicTypeDef = elem_type
+                elems_per_chunk = 32 // basic_elem_type.byte_length()
+                chunk_i = i // elems_per_chunk
+                target = to_gindex(chunk_i, self.__class__.tree_depth())
+                if i % elems_per_chunk == 0:
+                    chunk = zero_node(0)
+                else:
+                    chunk = next_backing.getter(target)
+                set_last = next_backing.setter(target)
+                chunk = cast(BasicView, basic_elem_type.default(None)).backing_from_base(chunk, i % elems_per_chunk)
+                next_backing = set_last(chunk)
+
+                can_summarize = (target & 1) == 0 and i % elems_per_chunk == 0
+            else:
+                raise Exception("cannot pop a packed element that is not a basic type")
+        else:
+            target = to_gindex(i, self.__class__.tree_depth())
+            set_last = self.get_backing().setter(target)
+            next_backing = set_last(zero_node(0))
+            can_summarize = (target & 1) == 0
 
         # if possible, summarize
-        can_summarize = (target & 1) == 0
         if can_summarize:
             # summarize to the highest node possible.
             # I.e. the resulting target must be a right-hand, unless it's the only content node.
@@ -131,19 +176,30 @@ class VectorType(SubtreeType):
         raise NotImplementedError
 
     def default_node(cls) -> Node:
-        elem = cls.element_type().default_node()
-        return subtree_fill_to_length(elem, cls.tree_depth(), cls.length())
+        elem_type: TypeDef = cls.element_type()
+        length = cls.length()
+        if cls.is_packed():
+            if isinstance(elem_type, BasicTypeDef):
+                basic_elem_type: BasicTypeDef = elem_type
+                elems_per_chunk = 32 // basic_elem_type.byte_length()
+                length = (length + elems_per_chunk - 1) // elems_per_chunk
+                elem = zero_node(0)
+            else:
+                raise Exception("cannot append a packed element that is not a basic type")
+        else:
+            elem = elem_type.default_node()
+        return subtree_fill_to_length(elem, cls.tree_depth(), length)
 
     def __repr__(self):
         return f"Vector[{self.element_type()}, {self.length()}]"
 
     def __getitem__(self, params):
-        (element_type, length) = params
+        (element_view_cls, length) = params
 
         tree_depth = 0
         packed = False
-        if isinstance(element_type, BasicTypeDef):
-            elems_per_chunk = 32 // element_type.byte_length()
+        if isinstance(element_view_cls.__class__, BasicTypeDef):
+            elems_per_chunk = 32 // element_view_cls.byte_length()
             tree_depth = get_depth((length + elems_per_chunk - 1) // elems_per_chunk)
             packed = True
         else:
@@ -182,21 +238,33 @@ class Vector(SubtreeView, metaclass=VectorType):
 
 class Fields(NamedTuple):
     keys: Sequence[str]
-    types: Sequence[TypeBase]
+    types: Sequence[TypeDef]
 
 
-class ContainerType(SubtreeType):
-    def depth(cls) -> int:
-        return get_depth(len(cls.fields().keys))
+class ContainerTypeDef(TypeDef):
+    pass
 
-    def item_elem_type(cls, i: int) -> TypeBase:
-        return cls.fields().types[i]
 
-    def fields(cls) -> Fields:
+class ContainerType(SubtreeType, metaclass=ContainerTypeDef):
+
+    def __new__(mcs, *args, **kw):
+        return super().__new__(mcs, *args, **kw)
+
+    @classmethod
+    def depth(mcs) -> int:
+        return get_depth(len(mcs.fields().keys))
+
+    @classmethod
+    def item_elem_type(mcs, i: int) -> TypeDef:
+        return mcs.fields().types[i]
+
+    @classmethod
+    def fields(mcs) -> Fields:
         raise NotImplementedError
 
-    def default_node(cls) -> Node:
-        return subtree_fill_to_contents([field.default_node() for field in cls.fields().types], cls.depth())
+    @classmethod
+    def default_node(mcs) -> Node:
+        return subtree_fill_to_contents([field.default_node() for field in mcs.fields().types], mcs.depth())
 
     def __repr__(self):
         return f"{self.__name__}(Container)\n" + '\n'.join(

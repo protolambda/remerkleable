@@ -3,9 +3,13 @@ from pymerkles.core import View, ViewHook, TypeDef, TypeBase, zero_node
 from typing import Optional
 
 
-class Bytes32Type(TypeBase, metaclass=TypeDef):
-    def default_node(self) -> Node:
+class Bytes32TypeDef(TypeDef):
+    @classmethod
+    def default_node(mcs) -> Node:
         return zero_node(0)
+
+
+class Bytes32Type(TypeBase, metaclass=Bytes32TypeDef):
 
     def view_from_backing(cls, node: Node, hook: Optional["ViewHook"]) -> "View":
         if isinstance(node, RootNode):

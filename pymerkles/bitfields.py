@@ -91,12 +91,13 @@ class BitList(BitsView, metaclass=BitListType):
             raise Exception("list is maximum capacity, cannot append")
         i = ll
         chunk_i = i // 256
+        target: Gindex = to_gindex(chunk_i, self.__class__.tree_depth())
         if i & 0xff == 0:
-            set_last = self.get_backing().expand_into(to_gindex(chunk_i, self.__class__.tree_depth()))
+            set_last = self.get_backing().expand_into(target)
             next_backing = set_last(_new_chunk_with_bit(zero_node(0), 0, v))
         else:
-            set_last = self.get_backing().setter(to_gindex(chunk_i, self.__class__.tree_depth()))
-            chunk = self.get_backing().getter(to_gindex(chunk_i, self.__class__.tree_depth()))
+            set_last = self.get_backing().setter(target)
+            chunk = self.get_backing().getter(target)
             if isinstance(chunk, RootNode):
                 next_backing = set_last(_new_chunk_with_bit(chunk, i & 0xff, v))
             else:

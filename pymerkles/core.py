@@ -3,34 +3,58 @@ from pymerkles.tree import Node, Root, RootNode, zero_node
 
 
 class TypeDef(type):
-    def coerce_view(self, v: "View") -> "View":
+    @classmethod
+    def coerce_view(mcs, v: "View") -> "View":
         raise NotImplementedError
 
-    def default_node(self) -> Node:
+    @classmethod
+    def default_node(mcs) -> Node:
         raise NotImplementedError
 
-    def view_from_backing(self, node: Node, hook: Optional["ViewHook"]) -> "View":
+    @classmethod
+    def view_from_backing(mcs, node: Node, hook: Optional["ViewHook"]) -> "View":
         raise NotImplementedError
 
-    def default(self, hook: Optional["ViewHook"]) -> "View":
-        raise NotImplementedError
+    @classmethod
+    def default(mcs, hook: Optional["ViewHook"]) -> "View":
+        return mcs.view_from_backing(mcs.default_node(), hook)
 
 
 class TypeBase(type, metaclass=TypeDef):
-    def coerce_view(cls, v: "View") -> "View":
-        raise NotImplementedError
+    @classmethod
+    def coerce_view(mcs, v: "View") -> "View":
+        return mcs.__class__.coerce_view(v)
 
-    def default_node(cls) -> Node:
-        raise NotImplementedError
+    @classmethod
+    def default_node(mcs) -> Node:
+        return mcs.__class__.default_node()
 
-    def view_from_backing(cls, node: Node, hook: Optional["ViewHook"]) -> "View":
-        raise NotImplementedError
+    @classmethod
+    def view_from_backing(mcs, node: Node, hook: Optional["ViewHook"]) -> "View":
+        return mcs.__class__.view_from_backing(node, hook)
 
-    def default(cls, hook: Optional["ViewHook"]) -> "View":
-        return cls.view_from_backing(cls.default_node(), hook)
+    @classmethod
+    def default(mcs, hook: Optional["ViewHook"]) -> "View":
+        return mcs.__class__.default(hook)
 
 
 class View(object, metaclass=TypeBase):
+    @classmethod
+    def coerce_view(cls, v: "View") -> "View":
+        return cls.__class__.coerce_view(v)
+
+    # @classmethod
+    # def default_node(cls) -> Node:
+    #     return cls.__class__.default_node()
+
+    @classmethod
+    def view_from_backing(cls, node: Node, hook: Optional["ViewHook"]) -> "View":
+        return cls.__class__.view_from_backing(node, hook)
+
+    @classmethod
+    def default(cls, hook: Optional["ViewHook"]) -> "View":
+        return cls.__class__.default(hook)
+
     def get_backing(self) -> Node:
         raise NotImplementedError
 
@@ -69,53 +93,84 @@ ViewHook = NewType("ViewHook", Callable[[View], None])
 
 
 class BasicTypeDef(TypeDef):
-    def default_node(self) -> Node:
-        raise NotImplementedError
-
-    def byte_length(self) -> int:
-        raise NotImplementedError
-
-    def from_bytes(self, bytez: bytes, byteorder: str):
-        raise NotImplementedError
-
-    def view_from_backing(self, node: Node, hook: Optional["ViewHook"]) -> "View":
-        raise NotImplementedError
-
-    def basic_view_from_backing(self, node: RootNode, i: int) -> "BasicView":
-        raise NotImplementedError
-
-
-class BasicTypeBase(TypeBase, metaclass=BasicTypeDef):
-    def default_node(cls) -> Node:
+    @classmethod
+    def default_node(mcs) -> Node:
         return zero_node(0)
 
-    def byte_length(cls) -> int:
+    @classmethod
+    def byte_length(mcs) -> int:
         raise NotImplementedError
 
-    def from_bytes(cls, bytez: bytes, byteorder: str):
+    @classmethod
+    def from_bytes(mcs, bytez: bytes):
         raise NotImplementedError
 
-    def view_from_backing(cls, node: Node, hook: Optional["ViewHook"]) -> "View":
+    @classmethod
+    def view_from_backing(mcs, node: Node, hook: Optional["ViewHook"]) -> "View":
         if isinstance(node, RootNode):
-            size = cls.byte_length()
-            return cls.from_bytes(node.root[0:size], byteorder='little')
+            size = mcs.byte_length()
+            return mcs.from_bytes(node.root[0:size])
         else:
             raise Exception("cannot create basic view from composite node!")
 
-    def basic_view_from_backing(cls, node: RootNode, i: int) -> "BasicView":
-        size = cls.byte_length()
-        return cls.from_bytes(node.root[i*size:(i+1)*size], byteorder='little')
+    @classmethod
+    def basic_view_from_backing(mcs, node: RootNode, i: int) -> "BasicView":
+        size = mcs.byte_length()
+        return mcs.from_bytes(node.root[i*size:(i+1)*size])
+
+
+class BasicTypeBase(TypeBase, metaclass=BasicTypeDef):
+    @classmethod
+    def default_node(mcs) -> Node:
+        return mcs.__class__.default_node()
+
+    @classmethod
+    def byte_length(mcs) -> int:
+        return mcs.__class__.byte_length()
+
+    @classmethod
+    def from_bytes(mcs, bytez: bytes):
+        return mcs.__class__.from_bytes(bytez)
+
+    @classmethod
+    def view_from_backing(mcs, node: Node, hook: Optional["ViewHook"]) -> "View":
+        return mcs.__class__.view_from_backing(node, hook)
+
+    @classmethod
+    def basic_view_from_backing(mcs, node: RootNode, i: int) -> "BasicView":
+        return mcs.__class__.basic_view_from_backing(node, i)
 
 
 class BasicView(View, metaclass=BasicTypeBase):
+    @classmethod
+    def default_node(cls) -> Node:
+        return cls.__class__.default_node()
+
+    @classmethod
+    def byte_length(cls) -> int:
+        return cls.__class__.byte_length()
+
+    @classmethod
+    def from_bytes(cls, bytez: bytes):
+        return cls.__class__.from_bytes(bytez)
+
+    @classmethod
+    def view_from_backing(cls, node: Node, hook: Optional["ViewHook"]) -> "View":
+        return cls.__class__.view_from_backing(node, hook)
+
+    @classmethod
+    def basic_view_from_backing(cls, node: RootNode, i: int) -> "BasicView":
+        return cls.__class__.basic_view_from_backing(node, i)
+
     def backing_from_base(self, base: RootNode, i: int) -> RootNode:
         raise NotImplementedError
 
-    def to_bytes(self, length: int, byteorder: str) -> bytes:
+    def as_bytes(self) -> bytes:
         raise NotImplementedError
 
     def get_backing(self) -> Node:
-        return RootNode(Root(self.to_bytes(length=32, byteorder='little')))
+        bytez = self.as_bytes()
+        return RootNode(Root(bytez + b"\x00" * (32 - len(bytez))))
 
     def set_backing(self, value):
         raise Exception("cannot change the backing of a basic view")
