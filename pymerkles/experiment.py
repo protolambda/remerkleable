@@ -114,3 +114,43 @@ for i in range(N):
 end = time.time()
 delta = end - start
 print(f"ops: {N}, time: {delta} seconds  ms/op: {(delta / N) * 1000}")
+
+print(" --- balances test --- ")
+Balances = List[uint64, 2**40]
+print(Balances)
+balances = Balances()
+print(balances)
+print(balances.get_backing().merkle_root(merkle_hash).hex())
+print(balances.length())
+
+def do_append():
+    print("appending!")
+    balances.append(uint64(123))
+    print(balances)
+    print(balances.get_backing().merkle_root(merkle_hash).hex())
+    print(balances.length())
+
+
+def do_pop():
+    print("popping!")
+    balances.pop()
+    print(balances)
+    print(balances.get_backing().merkle_root(merkle_hash).hex())
+    print(balances.length())
+
+
+do_append()
+do_pop()
+do_append()
+do_append()
+do_pop()
+do_pop()
+do_append()
+do_append()
+do_append()
+do_append()
+do_pop()
+do_append()
+do_pop()
+do_pop()
+do_pop()

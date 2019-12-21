@@ -3,10 +3,9 @@ from pymerkles.tree import Node, Root, RootNode, zero_node
 
 
 class TypeDef(type):
-    pass
+    def coerce_view(self, v: "View") -> "View":
+        raise NotImplementedError
 
-
-class TypeBase(type, metaclass=TypeDef):
     def default_node(self) -> Node:
         raise NotImplementedError
 
@@ -14,7 +13,21 @@ class TypeBase(type, metaclass=TypeDef):
         raise NotImplementedError
 
     def default(self, hook: Optional["ViewHook"]) -> "View":
-        return self.view_from_backing(self.default_node(), hook)
+        raise NotImplementedError
+
+
+class TypeBase(type, metaclass=TypeDef):
+    def coerce_view(cls, v: "View") -> "View":
+        raise NotImplementedError
+
+    def default_node(cls) -> Node:
+        raise NotImplementedError
+
+    def view_from_backing(cls, node: Node, hook: Optional["ViewHook"]) -> "View":
+        raise NotImplementedError
+
+    def default(cls, hook: Optional["ViewHook"]) -> "View":
+        return cls.view_from_backing(cls.default_node(), hook)
 
 
 class View(object, metaclass=TypeBase):
@@ -56,7 +69,20 @@ ViewHook = NewType("ViewHook", Callable[[View], None])
 
 
 class BasicTypeDef(TypeDef):
-    pass
+    def default_node(self) -> Node:
+        raise NotImplementedError
+
+    def byte_length(self) -> int:
+        raise NotImplementedError
+
+    def from_bytes(self, bytez: bytes, byteorder: str):
+        raise NotImplementedError
+
+    def view_from_backing(self, node: Node, hook: Optional["ViewHook"]) -> "View":
+        raise NotImplementedError
+
+    def basic_view_from_backing(self, node: RootNode, i: int) -> "BasicView":
+        raise NotImplementedError
 
 
 class BasicTypeBase(TypeBase, metaclass=BasicTypeDef):

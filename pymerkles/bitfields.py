@@ -6,7 +6,7 @@ from pymerkles.basic import boolean, uint256
 
 
 class BitsType(BackedType):
-    def depth(cls):
+    def tree_depth(cls):
         raise NotImplementedError
 
 
@@ -19,6 +19,7 @@ def _new_chunk_with_bit(chunk: RootNode, i: int, v: boolean) -> RootNode:
     return RootNode(root=Root(new_chunk_root))
 
 
+# alike to the SubtreeView, but specialized to work on individual bits of chunks, instead of complex/basic types.
 class BitsView(BackedView, metaclass=BitsType):
 
     def length(self) -> int:
@@ -29,7 +30,7 @@ class BitsView(BackedView, metaclass=BitsType):
         if i >= ll:
             raise NavigationError(f"cannot get bit {i} in bits of length {ll}")
         chunk_i = i >> 8
-        chunk = self.get_backing().getter(to_gindex(chunk_i, self.__class__.depth()))
+        chunk = self.get_backing().getter(to_gindex(chunk_i, self.__class__.tree_depth()))
         if isinstance(chunk, RootNode):
             chunk_byte = chunk.root[(i & 0xf) >> 3]
             return boolean((chunk_byte >> (i & 0x7)) & 1)
@@ -41,8 +42,8 @@ class BitsView(BackedView, metaclass=BitsType):
         if i >= ll:
             raise NavigationError(f"cannot set bit {i} in bits of length {ll}")
         chunk_i = i >> 8
-        chunk_setter_link: Link = self.get_backing().setter(to_gindex(chunk_i, self.__class__.depth()))
-        chunk = self.get_backing().getter(to_gindex(chunk_i, self.__class__.depth()))
+        chunk_setter_link: Link = self.get_backing().setter(to_gindex(chunk_i, self.__class__.tree_depth()))
+        chunk = self.get_backing().getter(to_gindex(chunk_i, self.__class__.tree_depth()))
         if isinstance(chunk, RootNode):
             new_chunk = _new_chunk_with_bit(chunk, i, v)
             self.set_backing(chunk_setter_link(new_chunk))
@@ -54,7 +55,7 @@ class BitListType(BitsType):
     def contents_depth(cls) -> int:  # depth excluding the length mix-in
         return get_depth((cls.limit() + 255) // 256)
 
-    def depth(cls) -> int:
+    def tree_depth(cls) -> int:
         return cls.contents_depth() + 1  # 1 extra for length mix-in
 
     def limit(cls) -> int:
@@ -91,11 +92,11 @@ class BitList(BitsView, metaclass=BitListType):
         i = ll
         chunk_i = i // 256
         if i & 0xff == 0:
-            set_last = self.get_backing().expand_into(to_gindex(chunk_i, self.__class__.depth()))
+            set_last = self.get_backing().expand_into(to_gindex(chunk_i, self.__class__.tree_depth()))
             next_backing = set_last(_new_chunk_with_bit(zero_node(0), 0, v))
         else:
-            set_last = self.get_backing().setter(to_gindex(chunk_i, self.__class__.depth()))
-            chunk = self.get_backing().getter(to_gindex(chunk_i, self.__class__.depth()))
+            set_last = self.get_backing().setter(to_gindex(chunk_i, self.__class__.tree_depth()))
+            chunk = self.get_backing().getter(to_gindex(chunk_i, self.__class__.tree_depth()))
             if isinstance(chunk, RootNode):
                 next_backing = set_last(_new_chunk_with_bit(chunk, i & 0xff, v))
             else:
@@ -111,7 +112,7 @@ class BitList(BitsView, metaclass=BitListType):
             raise Exception("list is empty, cannot pop")
         i = ll - 1
         chunk_i = i // 256
-        target: Gindex = to_gindex(chunk_i, self.__class__.depth())
+        target: Gindex = to_gindex(chunk_i, self.__class__.tree_depth())
         if i & 0xff == 0:
             set_last = self.get_backing().setter(target)
             next_backing = set_last(zero_node(0))

@@ -1,13 +1,16 @@
 from typing import Sequence, NamedTuple, cast
-from pymerkles.core import TypeBase, View
+from pymerkles.core import TypeBase, View, BasicTypeDef
 from pymerkles.basic import uint256
 from pymerkles.tree import Node, subtree_fill_to_length, subtree_fill_to_contents, zero_node, Gindex, Commit, to_gindex
 from pymerkles.subtree import SubtreeType, SubtreeView, get_depth
 
 
 class ListType(SubtreeType):
-    def depth(cls) -> int:
-        return get_depth(cls.limit()) + 1  # 1 extra for length mix-in
+    def contents_depth(cls) -> int:
+        raise NotImplementedError
+
+    def tree_depth(cls) -> int:
+        return cls.contents_depth() + 1  # 1 extra for length mix-in
 
     def element_type(cls) -> TypeBase:
         raise NotImplementedError
@@ -19,15 +22,24 @@ class ListType(SubtreeType):
         raise NotImplementedError
 
     def default_node(cls) -> Node:
-        return Commit(zero_node(get_depth(cls.limit())), zero_node(0))  # mix-in 0 as list length
+        return Commit(zero_node(cls.contents_depth()), zero_node(0))  # mix-in 0 as list length
 
     def __repr__(self):
         return f"List[{self.element_type()}, {self.limit()}]"
 
     def __getitem__(self, params):
         (element_type, limit) = params
+        contents_depth = 0
+        if isinstance(element_type, BasicTypeDef):
+            elems_per_chunk = 32 // element_type.byte_length()
+            contents_depth = get_depth((limit + elems_per_chunk - 1) // elems_per_chunk)
+        else:
+            contents_depth = get_depth(limit)
 
         class SpecialListType(ListType):
+            def contents_depth(cls) -> int:
+                return contents_depth
+
             def element_type(cls) -> TypeBase:
                 return element_type
 
@@ -50,7 +62,7 @@ class List(SubtreeView, metaclass=ListType):
         ll = self.length()
         if ll >= self.__class__.limit():
             raise Exception("list is maximum capacity, cannot append")
-        target: Gindex = to_gindex(ll, self.__class__.depth())
+        target: Gindex = to_gindex(ll, self.__class__.tree_depth())
         set_last = self.get_backing().expand_into(target)
         next_backing = set_last(v.get_backing())
         set_length = next_backing.setter(Gindex(3))
@@ -62,7 +74,7 @@ class List(SubtreeView, metaclass=ListType):
         ll = self.length()
         if ll == 0:
             raise Exception("list is empty, cannot pop")
-        target: Gindex = to_gindex(ll - 1, self.__class__.depth())
+        target: Gindex = to_gindex(ll - 1, self.__class__.tree_depth())
         set_last = self.get_backing().setter(target)
         next_backing = set_last(zero_node(0))
 
@@ -93,8 +105,8 @@ class List(SubtreeView, metaclass=ListType):
 
 
 class VectorType(SubtreeType):
-    def depth(cls) -> int:
-        return get_depth(cls.length())
+    def tree_depth(cls) -> int:
+        raise NotImplementedError
 
     def element_type(cls) -> TypeBase:
         raise NotImplementedError
@@ -107,7 +119,7 @@ class VectorType(SubtreeType):
 
     def default_node(cls) -> Node:
         elem = cls.element_type().default_node()
-        return subtree_fill_to_length(elem, cls.depth(), cls.length())
+        return subtree_fill_to_length(elem, cls.tree_depth(), cls.length())
 
     def __repr__(self):
         return f"Vector[{self.element_type()}, {self.length()}]"
@@ -115,7 +127,17 @@ class VectorType(SubtreeType):
     def __getitem__(self, params):
         (element_type, length) = params
 
+        tree_depth = 0
+        if isinstance(element_type, BasicTypeDef):
+            elems_per_chunk = 32 // element_type.byte_length()
+            tree_depth = get_depth((length + elems_per_chunk - 1) // elems_per_chunk)
+        else:
+            tree_depth = get_depth(length)
+
         class SpecialVectorType(VectorType):
+            def tree_depth(cls) -> int:
+                return tree_depth
+
             def element_type(cls) -> TypeBase:
                 return element_type
 
