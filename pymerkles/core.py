@@ -1,10 +1,10 @@
-from typing import Callable, NewType, Optional
+from typing import Callable, NewType, Optional, Any
 from pymerkles.tree import Node, Root, RootNode, zero_node
 
 
 class TypeDef(type):
     @classmethod
-    def coerce_view(mcs, v: "View") -> "View":
+    def coerce_view(mcs, v: Any) -> "View":
         raise NotImplementedError
 
     @classmethod
@@ -52,13 +52,13 @@ class BackedView(View, metaclass=TypeDef):
     def view_from_backing(cls, node: Node, hook: Optional["ViewHook"]) -> "View":
         return cls(backing=node, hook=hook)
 
-    def __init__(self, *args, **kw):
-        if "backing" in kw:
-            self._backing = kw.pop("backing")
-        else:
-            self._backing = self.__class__.default_node()
-        self._hook = kw.pop("hook", None)
-        super().__init__(*args, **kw)
+    def __new__(cls, backing: Optional[Node] = None, hook=None, **kwargs):
+        if backing is None:
+            backing = cls.default_node()
+        out = super().__new__(cls, **kwargs)
+        out._backing = backing
+        out._hook = hook
+        return out
 
     def get_backing(self) -> Node:
         return self._backing

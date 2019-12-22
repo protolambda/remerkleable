@@ -23,6 +23,8 @@ class Bytes32(bytes, View, metaclass=Bytes32Type):
     def __new__(cls, *args, **kwargs):
         if len(args) == 0:
             return super().__new__(cls, b"\x00" * 32, **kwargs)
+        else:
+            return super().__new__(cls, *args, **kwargs)
 
     def get_backing(self) -> Node:
         return RootNode(Root(self))

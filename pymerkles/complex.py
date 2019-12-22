@@ -23,7 +23,7 @@ class ListType(SubtreeTypeDef):
         raise NotImplementedError
 
     @classmethod
-    def item_elem_type(mcs, i: int) -> TypeDef:
+    def item_elem_cls(mcs, i: int) -> TypeDef:
         return mcs.element_cls()
 
     @classmethod
@@ -169,6 +169,9 @@ class List(SubtreeView, metaclass=ListType):
             raise IndexError
         super().set(i, v)
 
+    def __repr__(self):
+        return ', '.join(repr(self.get(i)) for i in range(self.length()))
+
 
 class VectorType(SubtreeTypeDef):
     @classmethod
@@ -256,6 +259,12 @@ class Vector(SubtreeView, metaclass=VectorType):
             raise IndexError
         super().set(i, v)
 
+    def length(self) -> int:
+        return self.__class__.vector_length()
+
+    def __repr__(self):
+        return ', '.join(repr(self.get(i)) for i in range(self.length()))
+
 
 class Fields(NamedTuple):
     keys: Sequence[str]
@@ -275,12 +284,34 @@ class ContainerType(SubtreeTypeDef):
 
 class Container(SubtreeView, metaclass=ContainerType):
 
+    def __new__(cls, *args, **kwargs):
+        fields = cls.fields()
+
+        input_nodes = []
+        for fkey, ftyp in zip(fields.keys, fields.types):
+            fnode: Node
+            if fkey in kwargs:
+                finput = kwargs.pop(fkey)
+                if not isinstance(finput, View):
+                    fnode = cast(TypeDef, ftyp).coerce_view(finput).get_backing()
+                else:
+                    fnode = finput.get_backing()
+            else:
+                fnode = cast(TypeDef, ftyp).default_node()
+            input_nodes.append(fnode)
+        kwargs['backing'] = subtree_fill_to_contents(input_nodes, cls.tree_depth())
+        return super().__new__(cls, *args, **kwargs)
+
     @classmethod
     def fields(cls) -> Fields:
         if not hasattr(cls, '_fields'):
             annot = cls.__annotations__
             cls._fields = Fields(keys=list(annot.keys()), types=[v for v in annot.values()])
         return cls._fields
+
+    @classmethod
+    def is_packed(cls) -> bool:
+        return False
 
     @classmethod
     def tree_depth(cls) -> int:
@@ -313,3 +344,9 @@ class Container(SubtreeView, metaclass=ContainerType):
                 super().set(keys.index(key), value)
             else:
                 super().__setattr__(key, value)
+
+    def __repr__(self):
+        fields = self.fields()
+        values = [getattr(self, f) for f in fields.keys]
+        return f"{self.__class__.__name__}(Container)\n" + '\n'.join(
+            ('  ' + fkey + ': ' + repr(ftype) + ' = ' + repr(fval)) for fkey, ftype, fval in zip(fields.keys, fields.types, values)) + '\n'
