@@ -1,17 +1,15 @@
 from pymerkles.tree import Node, RootNode, Root
-from pymerkles.core import View, ViewHook, TypeDef, TypeBase, zero_node
+from pymerkles.core import View, ViewHook, TypeDef, zero_node
 from typing import Optional
 
 
-class Bytes32TypeDef(TypeDef):
+class Bytes32Type(TypeDef):
     @classmethod
     def default_node(mcs) -> Node:
         return zero_node(0)
 
-
-class Bytes32Type(TypeBase, metaclass=Bytes32TypeDef):
-
-    def view_from_backing(cls, node: Node, hook: Optional["ViewHook"]) -> "View":
+    @classmethod
+    def view_from_backing(mcs, node: Node, hook: Optional["ViewHook"]) -> "View":
         if isinstance(node, RootNode):
             return Bytes32(node.root)
         else:

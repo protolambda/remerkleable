@@ -1,4 +1,4 @@
-from pymerkles.core import TypeDef, View, BackedType, BackedView, BasicTypeDef, BasicView
+from pymerkles.core import TypeDef, View, BackedView, BasicTypeDef, BasicView
 from pymerkles.tree import Link, to_gindex, RootNode, NavigationError
 
 
@@ -8,21 +8,24 @@ def get_depth(elem_count: int) -> int:
     return (elem_count - 1).bit_length()
 
 
-class SubtreeType(BackedType):
-    def is_packed(self) -> bool:
+class SubtreeTypeDef(TypeDef):
+    @classmethod
+    def is_packed(mcs) -> bool:
         raise NotImplementedError
 
-    def tree_depth(self) -> int:
+    @classmethod
+    def tree_depth(mcs) -> int:
         raise NotImplementedError
 
-    def item_elem_type(self, i: int) -> TypeDef:
+    @classmethod
+    def item_elem_cls(mcs, i: int) -> TypeDef:
         raise NotImplementedError
 
 
-class SubtreeView(BackedView, metaclass=SubtreeType):
+class SubtreeView(BackedView, metaclass=SubtreeTypeDef):
 
     def get(self, i: int) -> View:
-        elem_type: TypeDef = self.__class__.item_elem_type(i)
+        elem_type: TypeDef = self.__class__.item_elem_cls(i)
         # basic types are more complicated: we operate on subsections packed into a bottom chunk
         if self.__class__.is_packed():
             if isinstance(elem_type, BasicTypeDef):
@@ -41,7 +44,7 @@ class SubtreeView(BackedView, metaclass=SubtreeType):
                 self.get_backing().getter(to_gindex(i, self.__class__.tree_depth())), lambda v: self.set(i, v))
 
     def set(self, i: int, v: View) -> None:
-        elem_type: TypeDef = self.__class__.item_elem_type(i)
+        elem_type: TypeDef = self.__class__.item_elem_cls(i)
         # if not the right type, try to coerce it
         if not isinstance(v, elem_type):
             v = elem_type.coerce_view(v)

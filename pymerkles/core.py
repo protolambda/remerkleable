@@ -20,32 +20,14 @@ class TypeDef(type):
         return mcs.view_from_backing(mcs.default_node(), hook)
 
 
-class TypeBase(type, metaclass=TypeDef):
-    @classmethod
-    def coerce_view(mcs, v: "View") -> "View":
-        return mcs.__class__.coerce_view(v)
-
-    @classmethod
-    def default_node(mcs) -> Node:
-        return mcs.__class__.default_node()
-
-    @classmethod
-    def view_from_backing(mcs, node: Node, hook: Optional["ViewHook"]) -> "View":
-        return mcs.__class__.view_from_backing(node, hook)
-
-    @classmethod
-    def default(mcs, hook: Optional["ViewHook"]) -> "View":
-        return mcs.__class__.default(hook)
-
-
-class View(object, metaclass=TypeBase):
+class View(object, metaclass=TypeDef):
     @classmethod
     def coerce_view(cls, v: "View") -> "View":
         return cls.__class__.coerce_view(v)
 
-    # @classmethod
-    # def default_node(cls) -> Node:
-    #     return cls.__class__.default_node()
+    @classmethod
+    def default_node(cls) -> Node:
+        return cls.__class__.default_node()
 
     @classmethod
     def view_from_backing(cls, node: Node, hook: Optional["ViewHook"]) -> "View":
@@ -62,14 +44,13 @@ class View(object, metaclass=TypeBase):
         raise NotImplementedError
 
 
-class BackedType(TypeBase, metaclass=TypeDef):
-    def view_from_backing(cls, node: Node, hook: Optional["ViewHook"]) -> "View":
-        return cls(backing=node, hook=hook)
-
-
-class BackedView(View, metaclass=BackedType):
+class BackedView(View, metaclass=TypeDef):
     _hook: Optional["ViewHook"]
     _backing: Node
+
+    @classmethod
+    def view_from_backing(cls, node: Node, hook: Optional["ViewHook"]) -> "View":
+        return cls(backing=node, hook=hook)
 
     def __init__(self, *args, **kw):
         if "backing" in kw:
@@ -119,29 +100,7 @@ class BasicTypeDef(TypeDef):
         return mcs.from_bytes(node.root[i*size:(i+1)*size])
 
 
-class BasicTypeBase(TypeBase, metaclass=BasicTypeDef):
-    @classmethod
-    def default_node(mcs) -> Node:
-        return mcs.__class__.default_node()
-
-    @classmethod
-    def byte_length(mcs) -> int:
-        return mcs.__class__.byte_length()
-
-    @classmethod
-    def from_bytes(mcs, bytez: bytes):
-        return mcs.__class__.from_bytes(bytez)
-
-    @classmethod
-    def view_from_backing(mcs, node: Node, hook: Optional["ViewHook"]) -> "View":
-        return mcs.__class__.view_from_backing(node, hook)
-
-    @classmethod
-    def basic_view_from_backing(mcs, node: RootNode, i: int) -> "BasicView":
-        return mcs.__class__.basic_view_from_backing(node, i)
-
-
-class BasicView(View, metaclass=BasicTypeBase):
+class BasicView(View, metaclass=BasicTypeDef):
     @classmethod
     def default_node(cls) -> Node:
         return cls.__class__.default_node()
@@ -163,7 +122,9 @@ class BasicView(View, metaclass=BasicTypeBase):
         return cls.__class__.basic_view_from_backing(node, i)
 
     def backing_from_base(self, base: RootNode, i: int) -> RootNode:
-        raise NotImplementedError
+        section_bytez = self.as_bytes()
+        chunk_bytez = base.root[:len(section_bytez)*i] + section_bytez + base.root[len(section_bytez)*(i+1):]
+        return RootNode(Root(chunk_bytez))
 
     def as_bytes(self) -> bytes:
         raise NotImplementedError

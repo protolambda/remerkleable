@@ -1,12 +1,13 @@
 from typing import cast
-from pymerkles.core import BackedType, BackedView
+from pymerkles.core import TypeDef, BackedView
 from pymerkles.tree import Node, Commit, zero_node, Gindex, to_gindex, Link, RootNode, NavigationError, Root
 from pymerkles.subtree import get_depth
 from pymerkles.basic import boolean, uint256
 
 
-class BitsType(BackedType):
-    def tree_depth(cls):
+class BitsType(TypeDef):
+    @classmethod
+    def tree_depth(mcs):
         raise NotImplementedError
 
 
@@ -52,17 +53,21 @@ class BitsView(BackedView, metaclass=BitsType):
 
 
 class BitListType(BitsType):
-    def contents_depth(cls) -> int:  # depth excluding the length mix-in
-        return get_depth((cls.limit() + 255) // 256)
+    @classmethod
+    def contents_depth(mcs) -> int:  # depth excluding the length mix-in
+        return get_depth((mcs.limit() + 255) // 256)
 
-    def tree_depth(cls) -> int:
-        return cls.contents_depth() + 1  # 1 extra for length mix-in
+    @classmethod
+    def tree_depth(mcs) -> int:
+        return mcs.contents_depth() + 1  # 1 extra for length mix-in
 
-    def limit(cls) -> int:
+    @classmethod
+    def limit(mcs) -> int:
         raise NotImplementedError
 
-    def default_node(cls) -> Node:
-        return Commit(zero_node(cls.contents_depth()), zero_node(0))  # mix-in 0 as list length
+    @classmethod
+    def default_node(mcs) -> Node:
+        return Commit(zero_node(mcs.contents_depth()), zero_node(0))  # mix-in 0 as list length
 
     def __repr__(self):
         return f"BitList[{self.limit()}]"
@@ -70,7 +75,8 @@ class BitListType(BitsType):
     def __getitem__(self, limit):
 
         class SpecialBitListType(BitListType):
-            def limit(cls) -> int:
+            @classmethod
+            def limit(mcs) -> int:
                 return limit
 
         class SpecialBitListView(BitList, metaclass=SpecialBitListType):
@@ -152,34 +158,41 @@ class BitList(BitsView, metaclass=BitListType):
 
 
 class BitVectorType(BitsType):
-    def depth(cls) -> int:
-        return get_depth((cls.length() + 255) // 256)
+    @classmethod
+    def depth(mcs) -> int:
+        return get_depth((mcs.vector_length() + 255) // 256)
 
-    def length(cls) -> int:
+    @classmethod
+    def vector_length(mcs) -> int:
         raise NotImplementedError
 
-    def default_node(cls) -> Node:
-        return zero_node(cls.depth())
+    @classmethod
+    def default_node(mcs) -> Node:
+        return zero_node(mcs.depth())
 
     def __repr__(self):
-        return f"BitVector[{self.length()}]"
+        return f"BitVector[{self.vector_length()}]"
 
     def __getitem__(self, length):
 
         class SpecialBitVectorType(BitVectorType):
-            def length(cls) -> int:
+            @classmethod
+            def vector_length(mcs) -> int:
                 return length
 
         class SpecialBitVectorView(BitVector, metaclass=SpecialBitVectorType):
-            def length(self) -> int:
-                return length
+            pass
 
         return SpecialBitVectorView
 
 
 class BitVector(BitsView, metaclass=BitVectorType):
-    def length(self) -> int:
+    @classmethod
+    def vector_length(cls) -> int:
         raise NotImplementedError
+
+    def length(self) -> int:
+        return self.__class__.vector_length()
 
     def get(self, i: int) -> boolean:
         if i > self.length():

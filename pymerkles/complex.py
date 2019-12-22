@@ -1,34 +1,41 @@
 from typing import Sequence, NamedTuple, cast
-from pymerkles.core import TypeDef, TypeBase, View, BasicTypeDef, BasicTypeBase, BasicView
+from pymerkles.core import TypeDef, View, BasicTypeDef, BasicView
 from pymerkles.basic import uint256
 from pymerkles.tree import Node, subtree_fill_to_length, subtree_fill_to_contents, zero_node, Gindex, Commit, to_gindex
-from pymerkles.subtree import SubtreeType, SubtreeView, get_depth
+from pymerkles.subtree import SubtreeTypeDef, SubtreeView, get_depth
 
 
-class ListType(SubtreeType):
-    def is_packed(cls) -> bool:
+class ListType(SubtreeTypeDef):
+    @classmethod
+    def is_packed(mcs) -> bool:
         raise NotImplementedError
 
-    def contents_depth(cls) -> int:
+    @classmethod
+    def contents_depth(mcs) -> int:
         raise NotImplementedError
 
-    def tree_depth(cls) -> int:
-        return cls.contents_depth() + 1  # 1 extra for length mix-in
+    @classmethod
+    def tree_depth(mcs) -> int:
+        return mcs.contents_depth() + 1  # 1 extra for length mix-in
 
-    def element_type(cls) -> TypeDef:
+    @classmethod
+    def element_cls(mcs) -> TypeDef:
         raise NotImplementedError
 
-    def item_elem_type(cls, i: int) -> TypeDef:
-        return cls.element_type()
+    @classmethod
+    def item_elem_type(mcs, i: int) -> TypeDef:
+        return mcs.element_cls()
 
-    def limit(cls) -> int:
+    @classmethod
+    def limit(mcs) -> int:
         raise NotImplementedError
 
-    def default_node(cls) -> Node:
-        return Commit(zero_node(cls.contents_depth()), zero_node(0))  # mix-in 0 as list length
+    @classmethod
+    def default_node(mcs) -> Node:
+        return Commit(zero_node(mcs.contents_depth()), zero_node(0))  # mix-in 0 as list length
 
     def __repr__(self):
-        return f"List[{self.element_type()}, {self.limit()}]"
+        return f"List[{self.element_cls()}, {self.limit()}]"
 
     def __getitem__(self, params):
         (element_type, limit) = params
@@ -42,16 +49,20 @@ class ListType(SubtreeType):
             contents_depth = get_depth(limit)
 
         class SpecialListType(ListType):
-            def is_packed(cls) -> bool:
+            @classmethod
+            def is_packed(mcs) -> bool:
                 return packed
 
-            def contents_depth(cls) -> int:
+            @classmethod
+            def contents_depth(mcs) -> int:
                 return contents_depth
 
-            def element_type(cls) -> TypeBase:
+            @classmethod
+            def element_cls(mcs) -> TypeDef:
                 return element_type
 
-            def limit(cls) -> int:
+            @classmethod
+            def limit(mcs) -> int:
                 return limit
 
         class SpecialListView(List, metaclass=SpecialListType):
@@ -73,7 +84,7 @@ class List(SubtreeView, metaclass=ListType):
         i = ll
         if self.__class__.is_packed():
             next_backing = self.get_backing()
-            elem_type: TypeDef = self.__class__.element_type()
+            elem_type: TypeDef = self.__class__.element_cls()
             if isinstance(elem_type, BasicTypeDef):
                 if not isinstance(v, BasicView):
                     raise Exception("input element is not a basic view")
@@ -111,7 +122,7 @@ class List(SubtreeView, metaclass=ListType):
         can_summarize: bool
         if self.__class__.is_packed():
             next_backing = self.get_backing()
-            elem_type: TypeDef = self.__class__.element_type()
+            elem_type: TypeDef = self.__class__.element_cls()
             if isinstance(elem_type, BasicTypeDef):
                 basic_elem_type: BasicTypeDef = elem_type
                 elems_per_chunk = 32 // basic_elem_type.byte_length()
@@ -159,26 +170,32 @@ class List(SubtreeView, metaclass=ListType):
         super().set(i, v)
 
 
-class VectorType(SubtreeType):
-    def is_packed(cls) -> bool:
+class VectorType(SubtreeTypeDef):
+    @classmethod
+    def is_packed(mcs) -> bool:
         raise NotImplementedError
 
-    def tree_depth(cls) -> int:
+    @classmethod
+    def tree_depth(mcs) -> int:
         raise NotImplementedError
 
-    def element_type(cls) -> TypeBase:
+    @classmethod
+    def element_cls(mcs) -> TypeDef:
         raise NotImplementedError
 
-    def item_elem_type(cls, i: int) -> TypeBase:
-        return cls.element_type()
+    @classmethod
+    def item_elem_cls(mcs, i: int) -> TypeDef:
+        return mcs.element_cls()
 
-    def length(cls) -> int:
+    @classmethod
+    def vector_length(mcs) -> int:
         raise NotImplementedError
 
-    def default_node(cls) -> Node:
-        elem_type: TypeDef = cls.element_type()
-        length = cls.length()
-        if cls.is_packed():
+    @classmethod
+    def default_node(mcs) -> Node:
+        elem_type: TypeDef = mcs.element_cls()
+        length = mcs.vector_length()
+        if mcs.is_packed():
             if isinstance(elem_type, BasicTypeDef):
                 basic_elem_type: BasicTypeDef = elem_type
                 elems_per_chunk = 32 // basic_elem_type.byte_length()
@@ -188,17 +205,17 @@ class VectorType(SubtreeType):
                 raise Exception("cannot append a packed element that is not a basic type")
         else:
             elem = elem_type.default_node()
-        return subtree_fill_to_length(elem, cls.tree_depth(), length)
+        return subtree_fill_to_length(elem, mcs.tree_depth(), length)
 
     def __repr__(self):
-        return f"Vector[{self.element_type()}, {self.length()}]"
+        return f"Vector[{self.element_cls()}, {self.vector_length()}]"
 
     def __getitem__(self, params):
         (element_view_cls, length) = params
 
         tree_depth = 0
         packed = False
-        if isinstance(element_view_cls.__class__, BasicTypeDef):
+        if isinstance(element_view_cls, BasicTypeDef):
             elems_per_chunk = 32 // element_view_cls.byte_length()
             tree_depth = get_depth((length + elems_per_chunk - 1) // elems_per_chunk)
             packed = True
@@ -206,16 +223,20 @@ class VectorType(SubtreeType):
             tree_depth = get_depth(length)
 
         class SpecialVectorType(VectorType):
-            def is_packed(cls) -> bool:
+            @classmethod
+            def is_packed(mcs) -> bool:
                 return packed
 
-            def tree_depth(cls) -> int:
+            @classmethod
+            def tree_depth(mcs) -> int:
                 return tree_depth
 
-            def element_type(cls) -> TypeBase:
-                return element_type
+            @classmethod
+            def element_cls(mcs) -> TypeDef:
+                return element_view_cls
 
-            def length(cls) -> int:
+            @classmethod
+            def vector_length(mcs) -> int:
                 return length
 
         class SpecialVectorView(Vector, metaclass=SpecialVectorType):
@@ -226,12 +247,12 @@ class VectorType(SubtreeType):
 
 class Vector(SubtreeView, metaclass=VectorType):
     def get(self, i: int) -> View:
-        if i > self.__class__.length():
+        if i > self.__class__.vector_length():
             raise IndexError
         return super().get(i)
 
     def set(self, i: int, v: View) -> None:
-        if i > self.__class__.length():
+        if i > self.__class__.vector_length():
             raise IndexError
         super().set(i, v)
 
@@ -241,30 +262,11 @@ class Fields(NamedTuple):
     types: Sequence[TypeDef]
 
 
-class ContainerTypeDef(TypeDef):
-    pass
-
-
-class ContainerType(SubtreeType, metaclass=ContainerTypeDef):
-
-    def __new__(mcs, *args, **kw):
-        return super().__new__(mcs, *args, **kw)
-
-    @classmethod
-    def depth(mcs) -> int:
-        return get_depth(len(mcs.fields().keys))
-
-    @classmethod
-    def item_elem_type(mcs, i: int) -> TypeDef:
-        return mcs.fields().types[i]
+class ContainerType(SubtreeTypeDef):
 
     @classmethod
     def fields(mcs) -> Fields:
-        raise NotImplementedError
-
-    @classmethod
-    def default_node(mcs) -> Node:
-        return subtree_fill_to_contents([field.default_node() for field in mcs.fields().types], mcs.depth())
+        raise NotImplementedError()
 
     def __repr__(self):
         return f"{self.__name__}(Container)\n" + '\n'.join(
@@ -279,6 +281,18 @@ class Container(SubtreeView, metaclass=ContainerType):
             annot = cls.__annotations__
             cls._fields = Fields(keys=list(annot.keys()), types=[v for v in annot.values()])
         return cls._fields
+
+    @classmethod
+    def tree_depth(cls) -> int:
+        return get_depth(len(cls.fields().keys))
+
+    @classmethod
+    def item_elem_cls(cls, i: int) -> TypeDef:
+        return cls.fields().types[i]
+
+    @classmethod
+    def default_node(cls) -> Node:
+        return subtree_fill_to_contents([field.default_node() for field in cls.fields().types], cls.tree_depth())
 
     def __getattribute__(self, item):
         if item.startswith('_'):

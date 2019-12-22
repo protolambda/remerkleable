@@ -1,13 +1,15 @@
-from typing import cast
-from pymerkles.core import BasicTypeDef, BasicTypeBase, BasicView
+from pymerkles.core import BasicTypeDef, BasicView
 
 
-class BoolTypeDef(BasicTypeDef):
-    def byte_length(self) -> int:
+class BoolType(BasicTypeDef):
+    @classmethod
+    def byte_length(mcs) -> int:
         return 1
 
+    @classmethod
+    def from_bytes(mcs, bytez: bytes) -> BasicView:
+        return boolean(bytez != b"\x00")
 
-class BoolType(BasicTypeBase, metaclass=BoolTypeDef):
     def __repr__(self):
         return "boolean"
 
@@ -26,13 +28,11 @@ class boolean(int, BasicView, metaclass=BoolType):
         return self > 0
 
 
-class UintTypeDef(BasicTypeDef):
+class UintTypeBase(BasicTypeDef):
     @classmethod
     def byte_length(mcs) -> int:
         raise NotImplementedError
 
-
-class UintTypeBase(BasicTypeBase, metaclass=UintTypeDef):
     def __repr__(self):
         return "Uint"
 
@@ -42,7 +42,7 @@ class uint(int, BasicView, metaclass=UintTypeBase):
         return self.to_bytes(length=self.__class__.byte_length(), byteorder='little')
 
 
-class Uint8TypeDef(UintTypeDef):
+class Uint8Type(UintTypeBase):
     @classmethod
     def byte_length(mcs) -> int:
         return 1
@@ -51,8 +51,6 @@ class Uint8TypeDef(UintTypeDef):
     def from_bytes(mcs, bytez: bytes) -> BasicView:
         return uint8(int.from_bytes(bytez, byteorder='little'))
 
-
-class Uint8Type(UintTypeBase, metaclass=Uint8TypeDef):
     def __repr__(self):
         return "uint8"
 
@@ -61,7 +59,7 @@ class uint8(uint, metaclass=Uint8Type):
     pass
 
 
-class Uint16TypeDef(UintTypeDef):
+class Uint16Type(UintTypeBase):
     @classmethod
     def byte_length(mcs) -> int:
         return 2
@@ -70,8 +68,6 @@ class Uint16TypeDef(UintTypeDef):
     def from_bytes(mcs, bytez: bytes) -> BasicView:
         return uint16(int.from_bytes(bytez, byteorder='little'))
 
-
-class Uint16Type(UintTypeBase, metaclass=Uint16TypeDef):
     def __repr__(self):
         return "uint16"
 
@@ -80,7 +76,7 @@ class uint16(uint, metaclass=Uint16Type):
     pass
 
 
-class Uint32TypeDef(UintTypeDef):
+class Uint32Type(UintTypeBase):
     @classmethod
     def byte_length(mcs) -> int:
         return 4
@@ -89,8 +85,6 @@ class Uint32TypeDef(UintTypeDef):
     def from_bytes(mcs, bytez: bytes) -> BasicView:
         return uint32(int.from_bytes(bytez, byteorder='little'))
 
-
-class Uint32Type(UintTypeBase, metaclass=Uint32TypeDef):
     def __repr__(self):
         return "uint32"
 
@@ -99,7 +93,7 @@ class uint32(uint, metaclass=Uint32Type):
     pass
 
 
-class Uint64TypeDef(UintTypeDef):
+class Uint64Type(UintTypeBase):
     @classmethod
     def byte_length(mcs) -> int:
         return 8
@@ -107,9 +101,6 @@ class Uint64TypeDef(UintTypeDef):
     @classmethod
     def from_bytes(mcs, bytez: bytes) -> BasicView:
         return uint64(int.from_bytes(bytez, byteorder='little'))
-
-
-class Uint64Type(UintTypeBase, metaclass=Uint64TypeDef):
     
     def __repr__(self):
         return "uint64"
@@ -119,7 +110,7 @@ class uint64(uint, metaclass=Uint64Type):
     pass
 
 
-class Uint128TypeDef(UintTypeDef):
+class Uint128Type(UintTypeBase):
     @classmethod
     def byte_length(mcs) -> int:
         return 16
@@ -127,9 +118,6 @@ class Uint128TypeDef(UintTypeDef):
     @classmethod
     def from_bytes(mcs, bytez: bytes) -> BasicView:
         return uint128(int.from_bytes(bytez, byteorder='little'))
-
-
-class Uint128Type(UintTypeBase, metaclass=Uint128TypeDef):
 
     def __repr__(self):
         return "uint128"
@@ -139,7 +127,7 @@ class uint128(uint, metaclass=Uint128Type):
     pass
 
 
-class Uint256TypeDef(UintTypeDef):
+class Uint256Type(UintTypeBase):
     @classmethod
     def byte_length(mcs) -> int:
         return 32
@@ -148,8 +136,6 @@ class Uint256TypeDef(UintTypeDef):
     def from_bytes(mcs, bytez: bytes) -> BasicView:
         return uint256(int.from_bytes(bytez, byteorder='little'))
 
-
-class Uint256Type(UintTypeBase, metaclass=Uint256TypeDef):
     def __repr__(self):
         return "uint256"
 
