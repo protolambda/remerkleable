@@ -156,6 +156,17 @@ class BitList(BitsView, metaclass=BitListType):
             raise IndexError
         super().set(i, v)
 
+    def __repr__(self):
+        try:
+            length = self.length()
+        except NavigationError:
+            return f"Bitlist[{self.__class__.limit()}]~partial"
+        try:
+            bitstr = ''.join('1' if self.get(i) else '0' for i in range(length))
+        except NavigationError:
+            bitstr = " *partial bits* "
+        return f"BitList[{self.__class__.limit()}]({length} bits: {bitstr})"
+
 
 class BitVectorType(BitsType):
     @classmethod
@@ -204,4 +215,10 @@ class BitVector(BitsView, metaclass=BitVectorType):
             raise IndexError
         super().set(i, v)
 
-# TODO  bitfields repr
+    def __repr__(self):
+        length = self.length()
+        try:
+            bitstr = ''.join('1' if self.get(i) else '0' for i in range(length))
+        except NavigationError:
+            bitstr = " *partial bits* "
+        return f"BitVector[{length}]({bitstr})"
