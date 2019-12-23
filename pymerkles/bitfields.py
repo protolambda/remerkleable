@@ -203,3 +203,5 @@ class BitVector(BitsView, metaclass=BitVectorType):
         if i > self.length():
             raise IndexError
         super().set(i, v)
+
+# TODO  bitfields repr

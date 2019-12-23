@@ -45,6 +45,8 @@ class UintTypeBase(BasicTypeDef):
 class uint(int, BasicView, metaclass=UintTypeBase):
     @classmethod
     def coerce_view(cls, v: Any) -> View:
+        if isinstance(v, bytes):
+            return cls.from_bytes(v, byteorder='little')
         return cls(v)
 
     def as_bytes(self) -> bytes:

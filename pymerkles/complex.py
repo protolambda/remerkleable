@@ -1,6 +1,6 @@
 from typing import Sequence, NamedTuple, cast, List as PyList, Dict
 from pymerkles.core import TypeDef, View, BasicTypeDef, BasicView
-from pymerkles.basic import uint256
+from pymerkles.basic import uint256, uint8
 from pymerkles.tree import Node, subtree_fill_to_length, subtree_fill_to_contents, zero_node, Gindex, Commit, to_gindex, NavigationError
 from pymerkles.subtree import SubtreeTypeDef, SubtreeView, get_depth
 
@@ -292,6 +292,10 @@ class VectorType(MonoSubtreeTypeDef):
 
         class SpecialVectorType(VectorType):
             @classmethod
+            def coerce_view(mcs, v: View) -> View:
+                return SpecialVectorView()  # TODO
+
+            @classmethod
             def is_packed(mcs) -> bool:
                 return packed
 
@@ -317,6 +321,8 @@ class Vector(SubtreeView, metaclass=VectorType):
     def __new__(cls, *args, **kwargs):
         elem_cls = cls.__class__.element_cls()
         vals = list(args)
+        if issubclass(elem_cls, uint8) and len(vals) == 1 and isinstance(vals[0], bytes):
+            vals = list(vals[0])
         if len(vals) > 0:
             vector_length = cls.__class__.vector_length()
             if len(vals) != vector_length:
@@ -388,10 +394,10 @@ class Container(SubtreeView, metaclass=ContainerType):
             fnode: Node
             if fkey in kwargs:
                 finput = kwargs.pop(fkey)
-                if not isinstance(finput, View):
-                    fnode = cast(TypeDef, ftyp).coerce_view(finput).get_backing()
-                else:
+                if isinstance(finput, View):
                     fnode = finput.get_backing()
+                else:
+                    fnode = cast(TypeDef, ftyp).coerce_view(finput).get_backing()
             else:
                 fnode = cast(TypeDef, ftyp).default_node()
             input_nodes.append(fnode)
@@ -400,10 +406,8 @@ class Container(SubtreeView, metaclass=ContainerType):
 
     @classmethod
     def fields(cls) -> Fields:
-        if not hasattr(cls, '_fields'):
-            annot = cls.__annotations__
-            cls._fields = Fields(keys=list(annot.keys()), types=[v for v in annot.values()])
-        return cls._fields
+        annot = cls.__annotations__
+        return Fields(keys=list(annot.keys()), types=[v for v in annot.values()])
 
     @classmethod
     def is_packed(cls) -> bool:

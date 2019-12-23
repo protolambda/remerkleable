@@ -1,9 +1,13 @@
 from pymerkles.tree import Node, RootNode, Root
 from pymerkles.core import View, ViewHook, TypeDef, zero_node
-from typing import Optional
+from typing import Optional, Any
 
 
 class Bytes32Type(TypeDef):
+    @classmethod
+    def coerce_view(mcs, v: Any) -> View:
+        return Bytes32(v)
+
     @classmethod
     def default_node(mcs) -> Node:
         return zero_node(0)
