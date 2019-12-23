@@ -1,7 +1,12 @@
-from pymerkles.core import BasicTypeDef, BasicView
+from typing import Any
+from pymerkles.core import BasicTypeDef, BasicView, View
 
 
 class BoolType(BasicTypeDef):
+    @classmethod
+    def coerce_view(mcs, v: Any) -> View:
+        return boolean(v)
+
     @classmethod
     def byte_length(mcs) -> int:
         return 1
@@ -38,6 +43,10 @@ class UintTypeBase(BasicTypeDef):
 
 
 class uint(int, BasicView, metaclass=UintTypeBase):
+    @classmethod
+    def coerce_view(cls, v: Any) -> View:
+        return cls(v)
+
     def as_bytes(self) -> bytes:
         return self.to_bytes(length=self.__class__.byte_length(), byteorder='little')
 

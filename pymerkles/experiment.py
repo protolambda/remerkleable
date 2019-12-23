@@ -49,6 +49,14 @@ foo: List = SimpleList()
 print(foo)
 print(foo.get_backing().merkle_root(merkle_hash).hex())
 
+small_vec = Vector[uint64, 8](1, 2, 3, 4, 5, 6, 7, 8)
+print("small vec: ", small_vec)
+
+small_list = List[uint64, 8](1, 2, 3)
+print("small list: ", small_list)
+small_full_list = List[uint64, 8](1, 2, 3, 4, 5, 6, 7, 8)
+print("small full list: ", small_full_list)
+
 Registry = List[Validator, 2**40]
 print(Registry)
 registry = Registry()
@@ -94,7 +102,7 @@ do_pop()
 
 print("----")
 
-for i in range(1000):
+for i in range(20):
     registry.append(val1)
 
 print(registry)

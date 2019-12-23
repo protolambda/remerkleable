@@ -1,11 +1,46 @@
-from typing import Sequence, NamedTuple, cast
+from typing import Sequence, NamedTuple, cast, List as PyList, Dict
 from pymerkles.core import TypeDef, View, BasicTypeDef, BasicView
 from pymerkles.basic import uint256
-from pymerkles.tree import Node, subtree_fill_to_length, subtree_fill_to_contents, zero_node, Gindex, Commit, to_gindex
+from pymerkles.tree import Node, subtree_fill_to_length, subtree_fill_to_contents, zero_node, Gindex, Commit, to_gindex, NavigationError
 from pymerkles.subtree import SubtreeTypeDef, SubtreeView, get_depth
 
 
-class ListType(SubtreeTypeDef):
+class MonoSubtreeTypeDef(SubtreeTypeDef):
+    @classmethod
+    def element_cls(mcs) -> TypeDef:
+        raise NotImplementedError
+
+    @classmethod
+    def is_packed(mcs) -> bool:
+        raise NotImplementedError
+
+    @classmethod
+    def to_chunk_length(mcs, elems_length: int) -> int:
+        if mcs.is_packed():
+            elem_type: TypeDef = mcs.element_cls()
+            if isinstance(elem_type, BasicTypeDef):
+                basic_elem_type: BasicTypeDef = elem_type
+                elems_per_chunk = 32 // basic_elem_type.byte_length()
+                return (elems_length + elems_per_chunk - 1) // elems_per_chunk
+            else:
+                raise Exception("cannot append a packed element that is not a basic type")
+        else:
+            return elems_length
+
+    @classmethod
+    def views_into_chunks(mcs, views: PyList[View]) -> PyList[Node]:
+        if mcs.is_packed():
+            elem_type: TypeDef = mcs.element_cls()
+            if isinstance(elem_type, BasicTypeDef):
+                basic_elem_type: BasicTypeDef = elem_type
+                return basic_elem_type.pack_views(views)
+            else:
+                raise Exception("cannot append a packed element that is not a basic type")
+        else:
+            return [v.get_backing() for v in views]
+
+
+class ListType(MonoSubtreeTypeDef):
     @classmethod
     def is_packed(mcs) -> bool:
         raise NotImplementedError
@@ -72,6 +107,24 @@ class ListType(SubtreeTypeDef):
 
 
 class List(SubtreeView, metaclass=ListType):
+    def __new__(cls, *args, **kwargs):
+        elem_cls = cls.__class__.element_cls()
+        vals = list(args)
+        if len(vals) > 0:
+            limit = cls.__class__.limit()
+            if len(vals) > limit:
+                raise Exception(f"too many list inputs: {len(vals)}, limit is: {limit}")
+            input_views = []
+            for el in vals:
+                if isinstance(el, View):
+                    input_views.append(el)
+                else:
+                    input_views.append(elem_cls.coerce_view(el))
+            input_nodes = cls.__class__.views_into_chunks(input_views)
+            contents = subtree_fill_to_contents(input_nodes, cls.__class__.contents_depth())
+            kwargs['backing'] = Commit(contents, uint256(len(input_views)).get_backing())
+        return super().__new__(cls, **kwargs)
+
     def length(self) -> int:
         ll_node = super().get_backing().getter(Gindex(3))
         ll = cast(uint256, uint256.view_from_backing(node=ll_node, hook=None))
@@ -170,10 +223,28 @@ class List(SubtreeView, metaclass=ListType):
         super().set(i, v)
 
     def __repr__(self):
-        return ', '.join(repr(self.get(i)) for i in range(self.length()))
+        length: int
+        try:
+            length = self.length()
+        except NavigationError:
+            return f"List[{self.__class__.element_cls()}, {self.__class__.limit()}]( *summary root, no length known* )"
+        vals: Dict[int, View] = {}
+        partial = False
+        for i in range(length):
+            try:
+                vals[i] = self.get(i)
+            except NavigationError:
+                partial = True
+                continue
+        if partial:
+            return f"List[{self.__class__.element_cls()}, {self.__class__.limit()}]~partial(length={length})" + \
+                   '(' + ', '.join(f"{i}: {repr(v)}" for i, v in vals.items()) + ')'
+        else:
+            return f"List[{self.__class__.element_cls()}, {self.__class__.limit()}]" + \
+                   '(' + ', '.join(repr(v) for v in vals.values()) + ')'
 
 
-class VectorType(SubtreeTypeDef):
+class VectorType(MonoSubtreeTypeDef):
     @classmethod
     def is_packed(mcs) -> bool:
         raise NotImplementedError
@@ -197,15 +268,9 @@ class VectorType(SubtreeTypeDef):
     @classmethod
     def default_node(mcs) -> Node:
         elem_type: TypeDef = mcs.element_cls()
-        length = mcs.vector_length()
+        length = mcs.to_chunk_length(mcs.vector_length())
         if mcs.is_packed():
-            if isinstance(elem_type, BasicTypeDef):
-                basic_elem_type: BasicTypeDef = elem_type
-                elems_per_chunk = 32 // basic_elem_type.byte_length()
-                length = (length + elems_per_chunk - 1) // elems_per_chunk
-                elem = zero_node(0)
-            else:
-                raise Exception("cannot append a packed element that is not a basic type")
+            elem = zero_node(0)
         else:
             elem = elem_type.default_node()
         return subtree_fill_to_length(elem, mcs.tree_depth(), length)
@@ -249,6 +314,23 @@ class VectorType(SubtreeTypeDef):
 
 
 class Vector(SubtreeView, metaclass=VectorType):
+    def __new__(cls, *args, **kwargs):
+        elem_cls = cls.__class__.element_cls()
+        vals = list(args)
+        if len(vals) > 0:
+            vector_length = cls.__class__.vector_length()
+            if len(vals) != vector_length:
+                raise Exception(f"invalid inputs length: {len(vals)}, vector length is: {vector_length}")
+            input_views = []
+            for el in vals:
+                if isinstance(el, View):
+                    input_views.append(el)
+                else:
+                    input_views.append(elem_cls.coerce_view(el))
+            input_nodes = cls.__class__.views_into_chunks(input_views)
+            kwargs['backing'] = subtree_fill_to_contents(input_nodes, cls.__class__.tree_depth())
+        return super().__new__(cls, **kwargs)
+
     def get(self, i: int) -> View:
         if i > self.__class__.vector_length():
             raise IndexError
@@ -263,7 +345,21 @@ class Vector(SubtreeView, metaclass=VectorType):
         return self.__class__.vector_length()
 
     def __repr__(self):
-        return ', '.join(repr(self.get(i)) for i in range(self.length()))
+        vals: Dict[int, View] = {}
+        length = self.length()
+        partial = False
+        for i in range(length):
+            try:
+                vals[i] = self.get(i)
+            except NavigationError:
+                partial = True
+                continue
+        if partial:
+            return f"Vector[{self.__class__.element_cls()}, {self.__class__.vector_length()}]~partial" + \
+               '(' + ', '.join(f"{i}: {repr(v)}" for i, v in vals.items()) + ')'
+        else:
+            return f"Vector[{self.__class__.element_cls()}, {self.__class__.vector_length()}]" + \
+                   '(' + ', '.join(repr(v) for v in vals.values()) + ')'
 
 
 class Fields(NamedTuple):
@@ -347,6 +443,13 @@ class Container(SubtreeView, metaclass=ContainerType):
 
     def __repr__(self):
         fields = self.fields()
-        values = [getattr(self, f) for f in fields.keys]
+
+        def get_field_val_repr(fkey: str) -> str:
+            try:
+                return repr(getattr(self, fkey))
+            except NavigationError:
+                return "*omitted from partial*"
+
         return f"{self.__class__.__name__}(Container)\n" + '\n'.join(
-            ('  ' + fkey + ': ' + repr(ftype) + ' = ' + repr(fval)) for fkey, ftype, fval in zip(fields.keys, fields.types, values)) + '\n'
+            ('  ' + fkey + ': ' + repr(ftype) + ' = ' + get_field_val_repr(fkey))
+            for fkey, ftype in zip(fields.keys, fields.types)) + '\n'

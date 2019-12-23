@@ -1,4 +1,4 @@
-from typing import Callable, NewType, Optional, Any
+from typing import Callable, NewType, Optional, Any, cast, List as PyList
 from pymerkles.tree import Node, Root, RootNode, zero_node
 
 
@@ -98,6 +98,23 @@ class BasicTypeDef(TypeDef):
     def basic_view_from_backing(mcs, node: RootNode, i: int) -> "BasicView":
         size = mcs.byte_length()
         return mcs.from_bytes(node.root[i*size:(i+1)*size])
+
+    @classmethod
+    def pack_views(mcs, views: PyList[View]) -> PyList[Node]:
+        elems_per_chunk = 32 // mcs.byte_length()
+        chunk: RootNode = zero_node(0)
+        i = 0
+        out = []
+        for v in views:
+            if not isinstance(v.__class__, mcs):
+                raise Exception("element is not the expected type")
+            chunk = cast(BasicView, v).backing_from_base(chunk, i % elems_per_chunk)
+            i += 1
+            if i % elems_per_chunk == 0:
+                out.append(chunk)
+        if i % elems_per_chunk != 0:
+            out.append(chunk)
+        return out
 
 
 class BasicView(View, metaclass=BasicTypeDef):
