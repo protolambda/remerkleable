@@ -1,8 +1,9 @@
 from typing import Callable, NewType, Optional, Any, cast, List as PyList
+from abc import ABCMeta
 from pymerkles.tree import Node, Root, RootNode, zero_node
 
 
-class TypeDef(type):
+class TypeDef(ABCMeta):
     @classmethod
     def coerce_view(mcs, v: Any) -> "View":
         raise NotImplementedError

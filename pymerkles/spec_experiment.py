@@ -4,9 +4,7 @@ from pymerkles.bytes32 import Bytes32
 from pymerkles.bitfields import BitList as Bitlist, BitVector as Bitvector
 from pymerkles.core import View
 from pymerkles.tree import merkle_hash
-from typing import (
-    Any, Dict, Set, Sequence, Tuple, Optional
-)
+from typing import Set, Sequence, Tuple
 
 from pymerkles.experiment_bls import (
     bls_aggregate_signatures,
@@ -16,6 +14,7 @@ from pymerkles.experiment_bls import (
 )
 
 from hashlib import sha256
+
 
 def hash(x):
     return sha256(x).digest()
@@ -313,7 +312,6 @@ class AggregateAndProof(Container):
     selection_proof: BLSSignature
 
 
-
 def integer_squareroot(n: uint64) -> uint64:
     """
     Return the largest integer ``x`` such that ``x**2 <= n``.
@@ -370,9 +368,9 @@ def is_eligible_for_activation(state: BeaconState, validator: Validator) -> bool
     """
     return (
         # Placement in queue is finalized
-            validator.activation_eligibility_epoch <= state.finalized_checkpoint.epoch
-            # Has not yet been activated
-            and validator.activation_epoch == FAR_FUTURE_EPOCH
+        validator.activation_eligibility_epoch <= state.finalized_checkpoint.epoch
+        # Has not yet been activated
+        and validator.activation_epoch == FAR_FUTURE_EPOCH
     )
 
 
@@ -1225,7 +1223,7 @@ def create_genesis_state(validator_balances, activation_threshold):
 
 num_validators = 512
 
-state = create_genesis_state([MAX_EFFECTIVE_BALANCE] * num_validators, MAX_EFFECTIVE_BALANCE)
+example_state = create_genesis_state([MAX_EFFECTIVE_BALANCE] * num_validators, MAX_EFFECTIVE_BALANCE)
 
-print(state)
-print(hash_tree_root(state).hex())
+print(example_state)
+print(hash_tree_root(example_state).hex())

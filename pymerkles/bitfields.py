@@ -1,4 +1,5 @@
 from typing import cast
+from collections.abc import Sequence as ColSequence
 from pymerkles.core import TypeDef, BackedView
 from pymerkles.tree import Node, Commit, zero_node, Gindex, to_gindex, Link, RootNode, NavigationError, Root
 from pymerkles.subtree import get_depth
@@ -21,7 +22,7 @@ def _new_chunk_with_bit(chunk: RootNode, i: int, v: boolean) -> RootNode:
 
 
 # alike to the SubtreeView, but specialized to work on individual bits of chunks, instead of complex/basic types.
-class BitsView(BackedView, metaclass=BitsType):
+class BitsView(BackedView, ColSequence, metaclass=BitsType):
 
     def length(self) -> int:
         raise NotImplementedError
