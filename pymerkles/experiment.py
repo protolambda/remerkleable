@@ -43,11 +43,38 @@ print(data.get_backing().merkle_root(merkle_hash).hex())
 data.set(10, uint64(0))
 print(data.get_backing().merkle_root(merkle_hash).hex())
 
+print(data)
+data[1] = 456
+print(data)
+print(data[1])
+
+for i, v in enumerate(data):
+    print(f"{i}: {v}")
+    if i > 3:
+        break
+
+print(data[:3])
+
 SimpleList = List[uint64, 512]
 print(SimpleList)
 foo: List = SimpleList()
 print(foo)
 print(foo.get_backing().merkle_root(merkle_hash).hex())
+
+print(foo)
+foo.append(uint64(1001))
+foo.append(uint64(1002))
+print(foo)
+foo[1] = 456
+print(foo)
+print(foo[1])
+
+for i, v in enumerate(foo):
+    print(f"{i}: {v}")
+    if i > 3:
+        break
+
+print(foo[1:])
 
 small_vec = Vector[uint64, 8](1, 2, 3, 4, 5, 6, 7, 8)
 print("small vec: ", small_vec)

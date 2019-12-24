@@ -1,4 +1,4 @@
-from typing import Sequence, NamedTuple, cast, List as PyList, Dict
+from typing import Sequence, NamedTuple, cast, List as PyList, Dict, Union, Iterable
 from pymerkles.core import TypeDef, View, BasicTypeDef, BasicView
 from pymerkles.basic import uint256, uint8
 from pymerkles.tree import Node, subtree_fill_to_length, subtree_fill_to_contents, zero_node, Gindex, Commit, to_gindex, NavigationError
@@ -38,6 +38,46 @@ class MonoSubtreeTypeDef(SubtreeTypeDef):
                 raise Exception("cannot append a packed element that is not a basic type")
         else:
             return [v.get_backing() for v in views]
+
+
+class MutSeqLike(object):
+
+    def length(self):
+        raise NotImplementedError
+
+    def get(self, i: int) -> View:
+        raise NotImplementedError
+
+    def set(self, i: int, v: View):
+        raise NotImplementedError
+
+    def __len__(self):
+        return self.length()
+
+    def __iter__(self):
+        return iter(self.get(i) for i in range(self.length()))
+
+    def __getitem__(self, k) -> Union[View, Iterable[View]]:
+        length = self.length()
+        if isinstance(k, slice):
+            start = 0 if k.start is None else k.start
+            end = length if k.stop is None else k.stop
+            return [self.get(i) for i in range(start, end)]
+        else:
+            return self.get(k)
+
+    def __setitem__(self, k, v):
+        length = self.length()
+        if type(k) == slice:
+            i = 0 if k.start is None else k.start
+            end = length if k.stop is None else k.stop
+            for item in v:
+                self.set(i, item)
+                i += 1
+            if i != end:
+                raise Exception("failed to do full slice-set, not enough values")
+        else:
+            self.set(k, v)
 
 
 class ListType(MonoSubtreeTypeDef):
@@ -106,7 +146,7 @@ class ListType(MonoSubtreeTypeDef):
         return SpecialListView
 
 
-class List(SubtreeView, metaclass=ListType):
+class List(SubtreeView, MutSeqLike, metaclass=ListType):
     def __new__(cls, *args, **kwargs):
         elem_cls = cls.__class__.element_cls()
         vals = list(args)
@@ -213,12 +253,12 @@ class List(SubtreeView, metaclass=ListType):
         self.set_backing(next_backing)
 
     def get(self, i: int) -> View:
-        if i > self.length():
+        if i < 0 or i > self.length():
             raise IndexError
         return super().get(i)
 
     def set(self, i: int, v: View) -> None:
-        if i > self.length():
+        if i < 0 or i > self.length():
             raise IndexError
         super().set(i, v)
 
@@ -293,7 +333,7 @@ class VectorType(MonoSubtreeTypeDef):
         class SpecialVectorType(VectorType):
             @classmethod
             def coerce_view(mcs, v: View) -> View:
-                return SpecialVectorView()  # TODO
+                return SpecialVectorView()
 
             @classmethod
             def is_packed(mcs) -> bool:
@@ -317,7 +357,7 @@ class VectorType(MonoSubtreeTypeDef):
         return SpecialVectorView
 
 
-class Vector(SubtreeView, metaclass=VectorType):
+class Vector(SubtreeView, MutSeqLike, metaclass=VectorType):
     def __new__(cls, *args, **kwargs):
         elem_cls = cls.__class__.element_cls()
         vals = list(args)
@@ -338,12 +378,12 @@ class Vector(SubtreeView, metaclass=VectorType):
         return super().__new__(cls, **kwargs)
 
     def get(self, i: int) -> View:
-        if i > self.__class__.vector_length():
+        if i < 0 or i > self.__class__.vector_length():
             raise IndexError
         return super().get(i)
 
     def set(self, i: int, v: View) -> None:
-        if i > self.__class__.vector_length():
+        if i < 0 or i > self.__class__.vector_length():
             raise IndexError
         super().set(i, v)
 
