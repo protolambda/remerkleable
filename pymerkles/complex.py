@@ -1,4 +1,4 @@
-from typing import Sequence, NamedTuple, cast, List as PyList, Dict, Union, Iterable, Any
+from typing import Sequence, NamedTuple, cast, List as PyList, Dict, Any
 from pymerkles.core import TypeDef, View, BasicTypeDef, BasicView
 from pymerkles.basic import uint256, uint8
 from pymerkles.tree import Node, subtree_fill_to_length, subtree_fill_to_contents, zero_node, Gindex, Commit, to_gindex, NavigationError
@@ -42,7 +42,7 @@ class MonoSubtreeTypeDef(SubtreeTypeDef):
 
 class MutSeqLike(object):
 
-    def length(self):
+    def length(self) -> int:
         raise NotImplementedError
 
     def get(self, i: int) -> View:
@@ -57,7 +57,7 @@ class MutSeqLike(object):
     def __iter__(self):
         return iter(self.get(i) for i in range(self.length()))
 
-    def __getitem__(self, k) -> Union[View, Iterable[View]]:
+    def __getitem__(self, k):
         length = self.length()
         if isinstance(k, slice):
             start = 0 if k.start is None else k.start
@@ -78,6 +78,13 @@ class MutSeqLike(object):
                 raise Exception("failed to do full slice-set, not enough values")
         else:
             self.set(k, v)
+
+    def count(self, v: View) -> int:
+        i = 0
+        for item in self:
+            if item == v:
+                i += 1
+        return i
 
 
 class ListType(MonoSubtreeTypeDef):

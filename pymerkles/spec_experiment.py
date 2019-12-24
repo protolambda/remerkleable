@@ -1228,3 +1228,4 @@ num_validators = 512
 state = create_genesis_state([MAX_EFFECTIVE_BALANCE] * num_validators, MAX_EFFECTIVE_BALANCE)
 
 print(state)
+print(hash_tree_root(state).hex())

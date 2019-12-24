@@ -7,7 +7,7 @@ from pymerkles.basic import boolean, uint256
 
 class BitsType(TypeDef):
     @classmethod
-    def tree_depth(mcs):
+    def tree_depth(mcs) -> int:
         raise NotImplementedError
 
 
@@ -50,6 +50,34 @@ class BitsView(BackedView, metaclass=BitsType):
             self.set_backing(chunk_setter_link(new_chunk))
         else:
             raise NavigationError(f"chunk {chunk_i} for bit {i} is not available")
+
+    def __len__(self):
+        return self.length()
+
+    def __iter__(self):
+        return iter(self.get(i) for i in range(self.length()))
+
+    def __getitem__(self, k):
+        length = self.length()
+        if isinstance(k, slice):
+            start = 0 if k.start is None else k.start
+            end = length if k.stop is None else k.stop
+            return [self.get(i) for i in range(start, end)]
+        else:
+            return self.get(k)
+
+    def __setitem__(self, k, v):
+        length = self.length()
+        if type(k) == slice:
+            i = 0 if k.start is None else k.start
+            end = length if k.stop is None else k.stop
+            for item in v:
+                self.set(i, item)
+                i += 1
+            if i != end:
+                raise Exception("failed to do full slice-set, not enough values")
+        else:
+            self.set(k, v)
 
 
 class BitListType(BitsType):
