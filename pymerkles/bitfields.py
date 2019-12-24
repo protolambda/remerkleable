@@ -170,7 +170,7 @@ class BitList(BitsView, metaclass=BitListType):
 
 class BitVectorType(BitsType):
     @classmethod
-    def depth(mcs) -> int:
+    def tree_depth(mcs) -> int:
         return get_depth((mcs.vector_length() + 255) // 256)
 
     @classmethod
@@ -179,7 +179,7 @@ class BitVectorType(BitsType):
 
     @classmethod
     def default_node(mcs) -> Node:
-        return zero_node(mcs.depth())
+        return zero_node(mcs.tree_depth())
 
     def __repr__(self):
         return f"BitVector[{self.vector_length()}]"
@@ -198,9 +198,6 @@ class BitVectorType(BitsType):
 
 
 class BitVector(BitsView, metaclass=BitVectorType):
-    @classmethod
-    def vector_length(cls) -> int:
-        raise NotImplementedError
 
     def length(self) -> int:
         return self.__class__.vector_length()

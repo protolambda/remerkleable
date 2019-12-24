@@ -1,4 +1,4 @@
-from typing import Sequence, NamedTuple, cast, List as PyList, Dict, Union, Iterable
+from typing import Sequence, NamedTuple, cast, List as PyList, Dict, Union, Iterable, Any
 from pymerkles.core import TypeDef, View, BasicTypeDef, BasicView
 from pymerkles.basic import uint256, uint8
 from pymerkles.tree import Node, subtree_fill_to_length, subtree_fill_to_contents, zero_node, Gindex, Commit, to_gindex, NavigationError
@@ -124,6 +124,11 @@ class ListType(MonoSubtreeTypeDef):
             contents_depth = get_depth(limit)
 
         class SpecialListType(ListType):
+
+            @classmethod
+            def coerce_view(mcs, v: Any) -> View:
+                return SpecialListView(*v)
+
             @classmethod
             def is_packed(mcs) -> bool:
                 return packed
@@ -147,6 +152,7 @@ class ListType(MonoSubtreeTypeDef):
 
 
 class List(SubtreeView, MutSeqLike, metaclass=ListType):
+
     def __new__(cls, *args, **kwargs):
         elem_cls = cls.__class__.element_cls()
         vals = list(args)
@@ -332,8 +338,8 @@ class VectorType(MonoSubtreeTypeDef):
 
         class SpecialVectorType(VectorType):
             @classmethod
-            def coerce_view(mcs, v: View) -> View:
-                return SpecialVectorView()
+            def coerce_view(mcs, v: Any) -> View:
+                return SpecialVectorView(*v)
 
             @classmethod
             def is_packed(mcs) -> bool:
