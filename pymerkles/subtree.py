@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 from pymerkles.core import TypeDef, View, BackedView, BasicTypeDef, BasicView
 from pymerkles.tree import Link, to_gindex, RootNode, NavigationError
 
@@ -8,16 +9,19 @@ def get_depth(elem_count: int) -> int:
     return (elem_count - 1).bit_length()
 
 
-class SubtreeTypeDef(TypeDef):
+class SubtreeTypeDef(ABC, TypeDef):
     @classmethod
+    @abstractmethod
     def is_packed(mcs) -> bool:
         raise NotImplementedError
 
     @classmethod
+    @abstractmethod
     def tree_depth(mcs) -> int:
         raise NotImplementedError
 
     @classmethod
+    @abstractmethod
     def item_elem_cls(mcs, i: int) -> TypeDef:
         raise NotImplementedError
 

@@ -1,18 +1,21 @@
 from typing import Callable, NewType, Optional, Any, cast, List as PyList
-from abc import ABCMeta
+from abc import ABCMeta, ABC, abstractmethod
 from pymerkles.tree import Node, Root, RootNode, zero_node
 
 
 class TypeDef(ABCMeta):
     @classmethod
+    @abstractmethod
     def coerce_view(mcs, v: Any) -> "View":
         raise NotImplementedError
 
     @classmethod
+    @abstractmethod
     def default_node(mcs) -> Node:
         raise NotImplementedError
 
     @classmethod
+    @abstractmethod
     def view_from_backing(mcs, node: Node, hook: Optional["ViewHook"]) -> "View":
         raise NotImplementedError
 
@@ -21,7 +24,7 @@ class TypeDef(ABCMeta):
         return mcs.view_from_backing(mcs.default_node(), hook)
 
 
-class View(object, metaclass=TypeDef):
+class View(ABC, object, metaclass=TypeDef):
     @classmethod
     def coerce_view(cls, v: "View") -> "View":
         return cls.__class__.coerce_view(v)
@@ -38,9 +41,11 @@ class View(object, metaclass=TypeDef):
     def default(cls, hook: Optional["ViewHook"]) -> "View":
         return cls.__class__.default(hook)
 
+    @abstractmethod
     def get_backing(self) -> Node:
         raise NotImplementedError
 
+    @abstractmethod
     def set_backing(self, value):
         raise NotImplementedError
 
@@ -80,10 +85,12 @@ class BasicTypeDef(TypeDef):
         return zero_node(0)
 
     @classmethod
+    @abstractmethod
     def byte_length(mcs) -> int:
         raise NotImplementedError
 
     @classmethod
+    @abstractmethod
     def from_bytes(mcs, bytez: bytes):
         raise NotImplementedError
 
@@ -118,7 +125,7 @@ class BasicTypeDef(TypeDef):
         return out
 
 
-class BasicView(View, metaclass=BasicTypeDef):
+class BasicView(View, ABC, metaclass=BasicTypeDef):
     @classmethod
     def default_node(cls) -> Node:
         return cls.__class__.default_node()
@@ -144,6 +151,7 @@ class BasicView(View, metaclass=BasicTypeDef):
         chunk_bytez = base.root[:len(section_bytez)*i] + section_bytez + base.root[len(section_bytez)*(i+1):]
         return RootNode(Root(chunk_bytez))
 
+    @abstractmethod
     def as_bytes(self) -> bytes:
         raise NotImplementedError
 

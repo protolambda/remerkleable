@@ -1,4 +1,5 @@
 from typing import Any
+from abc import abstractmethod
 from pymerkles.core import BasicTypeDef, BasicView, View
 
 
@@ -35,6 +36,7 @@ class boolean(int, BasicView, metaclass=BoolType):
 
 class UintTypeBase(BasicTypeDef):
     @classmethod
+    @abstractmethod
     def byte_length(mcs) -> int:
         raise NotImplementedError
 

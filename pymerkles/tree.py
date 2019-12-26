@@ -1,5 +1,6 @@
 from typing import Callable, NewType, List, Optional
 from hashlib import sha256
+from abc import ABC, abstractmethod
 
 Gindex = NewType("Gindex", int)
 
@@ -26,14 +27,17 @@ def merkle_hash(left: Root, right: Root):
     return sha256(left + right).digest()
 
 
-class Node(object):
+class Node(ABC, object):
 
+    @abstractmethod
     def getter(self, target: Gindex) -> "Node":
         raise NotImplementedError
 
+    @abstractmethod
     def setter(self, target: Gindex) -> "Link":
         raise NotImplementedError
 
+    @abstractmethod
     def expand_into(self, target: Gindex) -> "Link":
         raise NotImplementedError
 
@@ -46,6 +50,7 @@ class Node(object):
 
         return summary
 
+    @abstractmethod
     def merkle_root(self, h: MerkleFn) -> "Root":
         raise NotImplementedError
 

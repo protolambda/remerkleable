@@ -1,5 +1,6 @@
 from typing import cast
 from collections.abc import Sequence as ColSequence
+from abc import ABC, abstractmethod
 from pymerkles.core import TypeDef, BackedView
 from pymerkles.tree import Node, Commit, zero_node, Gindex, to_gindex, Link, RootNode, NavigationError, Root
 from pymerkles.subtree import get_depth
@@ -22,8 +23,9 @@ def _new_chunk_with_bit(chunk: RootNode, i: int, v: boolean) -> RootNode:
 
 
 # alike to the SubtreeView, but specialized to work on individual bits of chunks, instead of complex/basic types.
-class BitsView(BackedView, ColSequence, metaclass=BitsType):
+class BitsView(BackedView, ColSequence, ABC, metaclass=BitsType):
 
+    @abstractmethod
     def length(self) -> int:
         raise NotImplementedError
 
@@ -91,6 +93,7 @@ class BitListType(BitsType):
         return mcs.contents_depth() + 1  # 1 extra for length mix-in
 
     @classmethod
+    @abstractmethod
     def limit(mcs) -> int:
         raise NotImplementedError
 
@@ -203,6 +206,7 @@ class BitVectorType(BitsType):
         return get_depth((mcs.vector_length() + 255) // 256)
 
     @classmethod
+    @abstractmethod
     def vector_length(mcs) -> int:
         raise NotImplementedError
 

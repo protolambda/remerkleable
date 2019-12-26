@@ -1,5 +1,6 @@
 from typing import Sequence, NamedTuple, cast, List as PyList, Dict, Any
 from collections.abc import Sequence as ColSequence
+from abc import ABC, abstractmethod
 from pymerkles.core import TypeDef, View, BasicTypeDef, BasicView
 from pymerkles.basic import uint256, uint8
 from pymerkles.tree import Node, subtree_fill_to_length, subtree_fill_to_contents, zero_node, Gindex, Commit, to_gindex, NavigationError
@@ -41,14 +42,17 @@ class MonoSubtreeTypeDef(SubtreeTypeDef):
             return [v.get_backing() for v in views]
 
 
-class MutSeqLike(ColSequence, object):
+class MutSeqLike(ABC, ColSequence, object):
 
+    @abstractmethod
     def length(self) -> int:
         raise NotImplementedError
 
+    @abstractmethod
     def get(self, i: int) -> View:
         raise NotImplementedError
 
+    @abstractmethod
     def set(self, i: int, v: View):
         raise NotImplementedError
 
@@ -83,10 +87,12 @@ class MutSeqLike(ColSequence, object):
 
 class ListType(MonoSubtreeTypeDef):
     @classmethod
+    @abstractmethod
     def is_packed(mcs) -> bool:
         raise NotImplementedError
 
     @classmethod
+    @abstractmethod
     def contents_depth(mcs) -> int:
         raise NotImplementedError
 
@@ -95,6 +101,7 @@ class ListType(MonoSubtreeTypeDef):
         return mcs.contents_depth() + 1  # 1 extra for length mix-in
 
     @classmethod
+    @abstractmethod
     def element_cls(mcs) -> TypeDef:
         raise NotImplementedError
 
@@ -103,6 +110,7 @@ class ListType(MonoSubtreeTypeDef):
         return mcs.element_cls()
 
     @classmethod
+    @abstractmethod
     def limit(mcs) -> int:
         raise NotImplementedError
 
@@ -293,14 +301,17 @@ class List(SubtreeView, MutSeqLike, metaclass=ListType):
 
 class VectorType(MonoSubtreeTypeDef):
     @classmethod
+    @abstractmethod
     def is_packed(mcs) -> bool:
         raise NotImplementedError
 
     @classmethod
+    @abstractmethod
     def tree_depth(mcs) -> int:
         raise NotImplementedError
 
     @classmethod
+    @abstractmethod
     def element_cls(mcs) -> TypeDef:
         raise NotImplementedError
 
@@ -309,6 +320,7 @@ class VectorType(MonoSubtreeTypeDef):
         return mcs.element_cls()
 
     @classmethod
+    @abstractmethod
     def vector_length(mcs) -> int:
         raise NotImplementedError
 
@@ -423,6 +435,7 @@ class Fields(NamedTuple):
 class ContainerType(SubtreeTypeDef):
 
     @classmethod
+    @abstractmethod
     def fields(mcs) -> Fields:
         raise NotImplementedError()
 
