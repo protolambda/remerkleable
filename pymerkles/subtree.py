@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from pymerkles.core import TypeDef, View, BackedView, BasicTypeDef, BasicView
+from pymerkles.core import TypeDef, View, BackedView, BasicTypeHelperDef, BasicView
 from pymerkles.tree import Link, to_gindex, RootNode, NavigationError
 
 
@@ -44,9 +44,9 @@ class SubtreeView(BackedView, metaclass=SubtreeTypeDef):
         elem_type: TypeDef = self.item_elem_cls(i)
         # basic types are more complicated: we operate on subsections packed into a bottom chunk
         if self.is_packed():
-            if isinstance(elem_type, BasicTypeDef):
-                basic_elem_type: BasicTypeDef = elem_type
-                elems_per_chunk = 32 // basic_elem_type.byte_length()
+            if isinstance(elem_type, BasicTypeHelperDef):
+                basic_elem_type: BasicTypeHelperDef = elem_type
+                elems_per_chunk = 32 // basic_elem_type.type_byte_length()
                 chunk_i = i // elems_per_chunk
                 chunk = self.get_backing().getter(to_gindex(chunk_i, self.tree_depth()))
                 if isinstance(chunk, RootNode):
@@ -66,12 +66,12 @@ class SubtreeView(BackedView, metaclass=SubtreeTypeDef):
             v = elem_type.coerce_view(v)
         if self.is_packed():
             # basic types are more complicated: we operate on a subsection of a bottom chunk
-            if isinstance(elem_type, BasicTypeDef):
+            if isinstance(elem_type, BasicTypeHelperDef):
                 if not isinstance(v, BasicView):
                     raise Exception("input element is not a basic view")
                 basic_v: BasicView = v
-                basic_elem_type: BasicTypeDef = elem_type
-                elems_per_chunk = 32 // basic_elem_type.byte_length()
+                basic_elem_type: BasicTypeHelperDef = elem_type
+                elems_per_chunk = 32 // basic_elem_type.type_byte_length()
                 chunk_i = i // elems_per_chunk
                 target = to_gindex(chunk_i, self.tree_depth())
                 chunk_setter_link: Link = self.get_backing().setter(target)

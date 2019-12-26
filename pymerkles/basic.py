@@ -1,15 +1,15 @@
 from typing import Any
 from abc import abstractmethod
-from pymerkles.core import BasicTypeDef, BasicView, View
+from pymerkles.core import BasicTypeHelperDef, BasicView, View
 
 
-class BoolType(BasicTypeDef):
+class BoolType(BasicTypeHelperDef):
     @classmethod
     def coerce_view(mcs, v: Any) -> View:
         return boolean(v)
 
     @classmethod
-    def byte_length(mcs) -> int:
+    def type_byte_length(mcs) -> int:
         return 1
 
     @classmethod
@@ -34,10 +34,10 @@ class boolean(int, BasicView, metaclass=BoolType):
         return self > 0
 
 
-class UintTypeBase(BasicTypeDef):
+class UintTypeBase(BasicTypeHelperDef):
     @classmethod
     @abstractmethod
-    def byte_length(mcs) -> int:
+    def type_byte_length(mcs) -> int:
         raise NotImplementedError
 
     def __repr__(self):
@@ -52,12 +52,12 @@ class uint(int, BasicView, metaclass=UintTypeBase):
         return cls(v)
 
     def as_bytes(self) -> bytes:
-        return self.to_bytes(length=self.__class__.byte_length(), byteorder='little')
+        return self.to_bytes(length=self.__class__.type_byte_length(), byteorder='little')
 
 
 class Uint8Type(UintTypeBase):
     @classmethod
-    def byte_length(mcs) -> int:
+    def type_byte_length(mcs) -> int:
         return 1
 
     @classmethod
@@ -74,7 +74,7 @@ class uint8(uint, metaclass=Uint8Type):
 
 class Uint16Type(UintTypeBase):
     @classmethod
-    def byte_length(mcs) -> int:
+    def type_byte_length(mcs) -> int:
         return 2
 
     @classmethod
@@ -91,7 +91,7 @@ class uint16(uint, metaclass=Uint16Type):
 
 class Uint32Type(UintTypeBase):
     @classmethod
-    def byte_length(mcs) -> int:
+    def type_byte_length(mcs) -> int:
         return 4
 
     @classmethod
@@ -108,7 +108,7 @@ class uint32(uint, metaclass=Uint32Type):
 
 class Uint64Type(UintTypeBase):
     @classmethod
-    def byte_length(mcs) -> int:
+    def type_byte_length(mcs) -> int:
         return 8
 
     @classmethod
@@ -125,7 +125,7 @@ class uint64(uint, metaclass=Uint64Type):
 
 class Uint128Type(UintTypeBase):
     @classmethod
-    def byte_length(mcs) -> int:
+    def type_byte_length(mcs) -> int:
         return 16
 
     @classmethod
@@ -142,7 +142,7 @@ class uint128(uint, metaclass=Uint128Type):
 
 class Uint256Type(UintTypeBase):
     @classmethod
-    def byte_length(mcs) -> int:
+    def type_byte_length(mcs) -> int:
         return 32
 
     @classmethod

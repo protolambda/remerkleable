@@ -1,7 +1,7 @@
-from typing import cast
+from typing import cast, BinaryIO
 from collections.abc import Sequence as ColSequence
 from abc import ABC, abstractmethod
-from pymerkles.core import TypeDef, BackedView
+from pymerkles.core import TypeDef, BackedView, FixedByteLengthTypeHelper, FixedByteLengthViewHelper
 from pymerkles.tree import Node, Commit, zero_node, Gindex, to_gindex, Link, RootNode, NavigationError, Root
 from pymerkles.subtree import get_depth
 from pymerkles.basic import boolean, uint256
@@ -116,6 +116,27 @@ class BitListType(BitsType):
 
         return SpecialBitListView
 
+    @classmethod
+    def is_fixed_byte_length(mcs) -> bool:
+        return False
+
+    @classmethod
+    def min_byte_length(mcs) -> int:
+        return 1  # the delimiting bit will always require at least 1 byte
+
+    @classmethod
+    def max_byte_length(mcs) -> int:
+        # maximum bit count in bytes rounded up + delimiting bit
+        return (mcs.limit() + 7 + 1) // 8
+
+    @classmethod
+    def from_bytes(mcs, bytez: bytes) -> "BitList":
+        raise NotImplementedError  # TODO
+
+    @classmethod
+    def deserialize(mcs, stream: BinaryIO, scope: int) -> "BitList":
+        raise NotImplementedError  # TODO
+
 
 class BitList(BitsView, metaclass=BitListType):
     def length(self) -> int:
@@ -199,8 +220,18 @@ class BitList(BitsView, metaclass=BitListType):
             bitstr = " *partial bits* "
         return f"BitList[{self.__class__.limit()}]({length} bits: {bitstr})"
 
+    def value_byte_length(self) -> int:
+        # bit count in bytes rounded up + delimiting bit
+        return (self.length() + 7 + 1) // 8
 
-class BitVectorType(BitsType):
+    def to_bytes(self) -> bytes:
+        raise NotImplementedError  # TODO concat chunks, end with delimiting bit
+
+    def serialize(self, stream: BinaryIO) -> int:
+        raise NotImplementedError  # TODO write chunks, end with delimiting bit
+
+
+class BitVectorType(FixedByteLengthTypeHelper, BitsType):
     @classmethod
     def tree_depth(mcs) -> int:
         return get_depth((mcs.vector_length() + 255) // 256)
@@ -229,8 +260,20 @@ class BitVectorType(BitsType):
 
         return SpecialBitVectorView
 
+    @classmethod
+    def type_byte_length(mcs) -> int:
+        return (mcs.vector_length() + 7) // 8
 
-class BitVector(BitsView, metaclass=BitVectorType):
+    @classmethod
+    def from_bytes(mcs, bytez: bytes) -> "BitVector":
+        raise NotImplementedError  # TODO
+
+    @classmethod
+    def deserialize(mcs, stream: BinaryIO, scope: int) -> "BitVector":
+        raise NotImplementedError  # TODO
+
+
+class BitVector(FixedByteLengthViewHelper, BitsView, metaclass=BitVectorType):
 
     def length(self) -> int:
         return self.__class__.vector_length()
@@ -252,3 +295,9 @@ class BitVector(BitsView, metaclass=BitVectorType):
         except NavigationError:
             bitstr = " *partial bits* "
         return f"BitVector[{length}]({bitstr})"
+
+    def to_bytes(self) -> bytes:
+        raise NotImplementedError  # TODO concat chunks, end at length
+
+    def serialize(self, stream: BinaryIO) -> int:
+        raise NotImplementedError  # TODO write chunks, end at length

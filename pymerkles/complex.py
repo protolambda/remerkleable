@@ -1,7 +1,8 @@
-from typing import Sequence, NamedTuple, cast, List as PyList, Dict, Any
+from typing import Sequence, NamedTuple, cast, List as PyList, Dict, Any, BinaryIO
 from collections.abc import Sequence as ColSequence
 from abc import ABC, abstractmethod
-from pymerkles.core import TypeDef, View, BasicTypeDef, BasicView
+import io
+from pymerkles.core import TypeDef, View, BasicTypeHelperDef, BasicView, OFFSET_BYTE_LENGTH
 from pymerkles.basic import uint256, uint8
 from pymerkles.tree import Node, subtree_fill_to_length, subtree_fill_to_contents, zero_node, Gindex, Commit, to_gindex, NavigationError
 from pymerkles.subtree import SubtreeTypeDef, SubtreeView, get_depth
@@ -20,9 +21,9 @@ class MonoSubtreeTypeDef(SubtreeTypeDef):
     def to_chunk_length(mcs, elems_length: int) -> int:
         if mcs.is_packed():
             elem_type: TypeDef = mcs.element_cls()
-            if isinstance(elem_type, BasicTypeDef):
-                basic_elem_type: BasicTypeDef = elem_type
-                elems_per_chunk = 32 // basic_elem_type.byte_length()
+            if isinstance(elem_type, BasicTypeHelperDef):
+                basic_elem_type: BasicTypeHelperDef = elem_type
+                elems_per_chunk = 32 // basic_elem_type.type_byte_length()
                 return (elems_length + elems_per_chunk - 1) // elems_per_chunk
             else:
                 raise Exception("cannot append a packed element that is not a basic type")
@@ -33,8 +34,8 @@ class MonoSubtreeTypeDef(SubtreeTypeDef):
     def views_into_chunks(mcs, views: PyList[View]) -> PyList[Node]:
         if mcs.is_packed():
             elem_type: TypeDef = mcs.element_cls()
-            if isinstance(elem_type, BasicTypeDef):
-                basic_elem_type: BasicTypeDef = elem_type
+            if isinstance(elem_type, BasicTypeHelperDef):
+                basic_elem_type: BasicTypeHelperDef = elem_type
                 return basic_elem_type.pack_views(views)
             else:
                 raise Exception("cannot append a packed element that is not a basic type")
@@ -118,6 +119,32 @@ class ListType(MonoSubtreeTypeDef):
     def default_node(mcs) -> Node:
         return Commit(zero_node(mcs.contents_depth()), zero_node(0))  # mix-in 0 as list length
 
+    @classmethod
+    def is_fixed_byte_length(mcs) -> bool:
+        return False
+
+    @classmethod
+    def min_byte_length(mcs) -> int:
+        return 0
+
+    @classmethod
+    def max_byte_length(mcs) -> int:
+        elem_cls = mcs.element_cls()
+        bytes_per_elem = elem_cls.max_byte_length()
+        if not elem_cls.is_fixed_byte_length():
+            bytes_per_elem += OFFSET_BYTE_LENGTH
+        return bytes_per_elem * mcs.limit()
+
+    @classmethod
+    def from_bytes(mcs, bytez: bytes) -> "List":
+        stream = io.BytesIO()
+        stream.write(bytez)
+        return mcs.deserialize(stream, len(bytez))
+
+    @classmethod
+    def deserialize(mcs, stream: BinaryIO, scope: int) -> "List":
+        raise NotImplementedError  # TODO
+
     def __repr__(self):
         return f"List[{self.element_cls()}, {self.limit()}]"
 
@@ -125,8 +152,8 @@ class ListType(MonoSubtreeTypeDef):
         (element_type, limit) = params
         contents_depth = 0
         packed = False
-        if isinstance(element_type, BasicTypeDef):
-            elems_per_chunk = 32 // element_type.byte_length()
+        if isinstance(element_type, BasicTypeHelperDef):
+            elems_per_chunk = 32 // element_type.type_byte_length()
             contents_depth = get_depth((limit + elems_per_chunk - 1) // elems_per_chunk)
             packed = True
         else:
@@ -185,6 +212,13 @@ class List(SubtreeView, MutSeqLike, metaclass=ListType):
         ll = cast(uint256, uint256.view_from_backing(node=ll_node, hook=None))
         return int(ll)
 
+    def value_byte_length(self) -> int:
+        elem_cls = self.__class__.element_cls()
+        if elem_cls.is_fixed_byte_length():
+            return elem_cls.type_byte_length() * self.length()
+        else:
+            return sum(OFFSET_BYTE_LENGTH + cast(View, el).value_byte_length() for el in self)
+
     def append(self, v: View):
         ll = self.length()
         if ll >= self.__class__.limit():
@@ -193,12 +227,12 @@ class List(SubtreeView, MutSeqLike, metaclass=ListType):
         if self.__class__.is_packed():
             next_backing = self.get_backing()
             elem_type: TypeDef = self.__class__.element_cls()
-            if isinstance(elem_type, BasicTypeDef):
+            if isinstance(elem_type, BasicTypeHelperDef):
                 if not isinstance(v, BasicView):
                     raise Exception("input element is not a basic view")
                 basic_v: BasicView = v
-                basic_elem_type: BasicTypeDef = elem_type
-                elems_per_chunk = 32 // basic_elem_type.byte_length()
+                basic_elem_type: BasicTypeHelperDef = elem_type
+                elems_per_chunk = 32 // basic_elem_type.type_byte_length()
                 chunk_i = i // elems_per_chunk
                 target: Gindex = to_gindex(chunk_i, self.__class__.tree_depth())
                 if i % elems_per_chunk == 0:
@@ -231,9 +265,9 @@ class List(SubtreeView, MutSeqLike, metaclass=ListType):
         if self.__class__.is_packed():
             next_backing = self.get_backing()
             elem_type: TypeDef = self.__class__.element_cls()
-            if isinstance(elem_type, BasicTypeDef):
-                basic_elem_type: BasicTypeDef = elem_type
-                elems_per_chunk = 32 // basic_elem_type.byte_length()
+            if isinstance(elem_type, BasicTypeHelperDef):
+                basic_elem_type: BasicTypeHelperDef = elem_type
+                elems_per_chunk = 32 // basic_elem_type.type_byte_length()
                 chunk_i = i // elems_per_chunk
                 target = to_gindex(chunk_i, self.__class__.tree_depth())
                 if i % elems_per_chunk == 0:
@@ -298,6 +332,14 @@ class List(SubtreeView, MutSeqLike, metaclass=ListType):
             return f"List[{self.__class__.element_cls()}, {self.__class__.limit()}]" + \
                    '(' + ', '.join(repr(v) for v in vals.values()) + ')'
 
+    def as_bytes(self) -> bytes:
+        stream = io.BytesIO()
+        self.serialize(stream)
+        return stream.read()
+
+    def serialize(self, stream: BinaryIO) -> int:
+        raise NotImplementedError  # TODO
+
 
 class VectorType(MonoSubtreeTypeDef):
     @classmethod
@@ -334,6 +376,36 @@ class VectorType(MonoSubtreeTypeDef):
             elem = elem_type.default_node()
         return subtree_fill_to_length(elem, mcs.tree_depth(), length)
 
+    @classmethod
+    def is_fixed_byte_length(mcs) -> bool:
+        return mcs.element_cls().is_fixed_byte_length()  # only if the element type is fixed byte length.
+
+    @classmethod
+    def min_byte_length(mcs) -> int:
+        elem_cls = mcs.element_cls()
+        bytes_per_elem = elem_cls.min_byte_length()
+        if not elem_cls.is_fixed_byte_length():
+            bytes_per_elem += OFFSET_BYTE_LENGTH
+        return bytes_per_elem * mcs.vector_length()
+
+    @classmethod
+    def max_byte_length(mcs) -> int:
+        elem_cls = mcs.element_cls()
+        bytes_per_elem = elem_cls.max_byte_length()
+        if not elem_cls.is_fixed_byte_length():
+            bytes_per_elem += OFFSET_BYTE_LENGTH
+        return bytes_per_elem * mcs.vector_length()
+
+    @classmethod
+    def from_bytes(mcs, bytez: bytes) -> "Vector":
+        stream = io.BytesIO()
+        stream.write(bytez)
+        return mcs.deserialize(stream, len(bytez))
+
+    @classmethod
+    def deserialize(mcs, stream: BinaryIO, scope: int) -> "Vector":
+        raise NotImplementedError  # TODO
+
     def __repr__(self):
         return f"Vector[{self.element_cls()}, {self.vector_length()}]"
 
@@ -342,8 +414,8 @@ class VectorType(MonoSubtreeTypeDef):
 
         tree_depth = 0
         packed = False
-        if isinstance(element_view_cls, BasicTypeDef):
-            elems_per_chunk = 32 // element_view_cls.byte_length()
+        if isinstance(element_view_cls, BasicTypeHelperDef):
+            elems_per_chunk = 32 // element_view_cls.type_byte_length()
             tree_depth = get_depth((length + elems_per_chunk - 1) // elems_per_chunk)
             packed = True
         else:
@@ -369,6 +441,25 @@ class VectorType(MonoSubtreeTypeDef):
             @classmethod
             def vector_length(mcs) -> int:
                 return length
+
+        # for fixed-size vectors, pre-compute the size.
+        if element_view_cls.is_fixed_byte_length():
+            byte_length = element_view_cls.type_byte_length() * length
+
+            class FixedSpecialVectorType(SpecialVectorType):
+                @classmethod
+                def type_byte_length(mcs) -> int:
+                    return byte_length
+
+                @classmethod
+                def min_byte_length(mcs) -> int:
+                    return byte_length
+
+                @classmethod
+                def max_byte_length(mcs) -> int:
+                    return byte_length
+
+            SpecialVectorType = FixedSpecialVectorType
 
         class SpecialVectorView(Vector, metaclass=SpecialVectorType):
             pass
@@ -409,6 +500,12 @@ class Vector(SubtreeView, MutSeqLike, metaclass=VectorType):
     def length(self) -> int:
         return self.__class__.vector_length()
 
+    def value_byte_length(self) -> int:
+        if self.__class__.is_fixed_byte_length():
+            return self.__class__.type_byte_length()
+        else:
+            return sum(OFFSET_BYTE_LENGTH + cast(View, el).value_byte_length() for el in self)
+
     def __repr__(self):
         vals: Dict[int, View] = {}
         length = self.length()
@@ -426,6 +523,14 @@ class Vector(SubtreeView, MutSeqLike, metaclass=VectorType):
             return f"Vector[{self.__class__.element_cls()}, {self.__class__.vector_length()}]" + \
                    '(' + ', '.join(repr(v) for v in vals.values()) + ')'
 
+    def as_bytes(self) -> bytes:
+        stream = io.BytesIO()
+        self.serialize(stream)
+        return stream.read()
+
+    def serialize(self, stream: BinaryIO) -> int:
+        raise NotImplementedError  # TODO
+
 
 class Fields(NamedTuple):
     keys: Sequence[str]
@@ -442,6 +547,45 @@ class ContainerType(SubtreeTypeDef):
     def __repr__(self):
         return f"{self.__name__}(Container)\n" + '\n'.join(
             ('  ' + fkey + ': ' + repr(ftype)) for fkey, ftype in zip(self.fields().keys, self.fields().types)) + '\n'
+
+    @classmethod
+    def is_fixed_byte_length(mcs) -> bool:
+        return all(f.is_fixed_byte_length() for f in mcs.fields().types)
+
+    @classmethod
+    def type_byte_length(mcs) -> int:
+        if mcs.is_fixed_byte_length():
+            return mcs.min_byte_length()
+        else:
+            raise Exception("dynamic length container does not have a fixed byte length")
+
+    @classmethod
+    def min_byte_length(mcs) -> int:
+        total = 0
+        for ftyp in mcs.fields().types:
+            if not ftyp.is_fixed_byte_length():
+                total += OFFSET_BYTE_LENGTH
+            total += ftyp.min_byte_length()
+        return total
+
+    @classmethod
+    def max_byte_length(mcs) -> int:
+        total = 0
+        for ftyp in mcs.fields().types:
+            if not ftyp.is_fixed_byte_length():
+                total += OFFSET_BYTE_LENGTH
+            total += ftyp.max_byte_length()
+        return total
+
+    @classmethod
+    def from_bytes(mcs, bytez: bytes) -> "Vector":
+        stream = io.BytesIO()
+        stream.write(bytez)
+        return mcs.deserialize(stream, len(bytez))
+
+    @classmethod
+    def deserialize(mcs, stream: BinaryIO, scope: int) -> "Vector":
+        raise NotImplementedError  # TODO
 
 
 class Container(SubtreeView, metaclass=ContainerType):
@@ -485,6 +629,20 @@ class Container(SubtreeView, metaclass=ContainerType):
     def default_node(cls) -> Node:
         return subtree_fill_to_contents([field.default_node() for field in cls.fields().types], cls.tree_depth())
 
+    def value_byte_length(self) -> int:
+        if self.__class__.is_fixed_byte_length():
+            return self.__class__.type_byte_length()
+        else:
+            total = 0
+            fields = self.fields()
+            for fkey, ftyp in zip(fields.keys, fields.types):
+                if ftyp.is_fixed_byte_length():
+                    total += ftyp.type_byte_length()
+                else:
+                    total += OFFSET_BYTE_LENGTH
+                    total += cast(View, getattr(self, fkey)).value_byte_length()
+            return total
+
     def __getattribute__(self, item):
         if item.startswith('_'):
             return super().__getattribute__(item)
@@ -517,3 +675,11 @@ class Container(SubtreeView, metaclass=ContainerType):
         return f"{self.__class__.__name__}(Container)\n" + '\n'.join(
             ('  ' + fkey + ': ' + repr(ftype) + ' = ' + get_field_val_repr(fkey))
             for fkey, ftype in zip(fields.keys, fields.types)) + '\n'
+
+    def as_bytes(self) -> bytes:
+        stream = io.BytesIO()
+        self.serialize(stream)
+        return stream.read()
+
+    def serialize(self, stream: BinaryIO) -> int:
+        raise NotImplementedError  # TODO

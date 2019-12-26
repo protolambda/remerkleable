@@ -1,9 +1,17 @@
 from pymerkles.tree import Node, RootNode, Root
-from pymerkles.core import View, ViewHook, TypeDef, zero_node
+from pymerkles.core import View, ViewHook, TypeDef, zero_node, FixedByteLengthTypeHelper, FixedByteLengthViewHelper
 from typing import Optional, Any
 
 
-class Bytes32Type(TypeDef):
+class Bytes32TypeHelper(FixedByteLengthTypeHelper, TypeDef):
+    @classmethod
+    def type_byte_length(mcs) -> int:
+        return 32
+
+    @classmethod
+    def from_bytes(mcs, bytez: bytes) -> "View":
+        return Bytes32(bytez)
+
     @classmethod
     def coerce_view(mcs, v: Any) -> View:
         return Bytes32(v)
@@ -23,12 +31,15 @@ class Bytes32Type(TypeDef):
         return "Bytes32"
 
 
-class Bytes32(bytes, View, metaclass=Bytes32Type):
+class Bytes32(bytes, FixedByteLengthViewHelper, View, metaclass=Bytes32TypeHelper):
     def __new__(cls, *args, **kwargs):
         if len(args) == 0:
             return super().__new__(cls, b"\x00" * 32, **kwargs)
         else:
-            return super().__new__(cls, *args, **kwargs)
+            out = super().__new__(cls, *args, **kwargs)
+            if len(out) != 32:
+                raise Exception(f"Bytes32 must be exactly 32 bytes, not {len(out)}")
+            return out
 
     def get_backing(self) -> Node:
         return RootNode(Root(self))
@@ -42,3 +53,5 @@ class Bytes32(bytes, View, metaclass=Bytes32Type):
     def __str__(self):
         return "0x" + self.hex()
 
+    def as_bytes(self) -> bytes:
+        return self
