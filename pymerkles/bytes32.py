@@ -9,7 +9,7 @@ class Bytes32TypeHelper(FixedByteLengthTypeHelper, TypeDef):
         return 32
 
     @classmethod
-    def from_bytes(mcs, bytez: bytes) -> "View":
+    def decode_bytes(mcs, bytez: bytes) -> "View":
         return Bytes32(bytez)
 
     @classmethod
@@ -53,5 +53,5 @@ class Bytes32(bytes, FixedByteLengthViewHelper, View, metaclass=Bytes32TypeHelpe
     def __str__(self):
         return "0x" + self.hex()
 
-    def as_bytes(self) -> bytes:
+    def encode_bytes(self) -> bytes:
         return self

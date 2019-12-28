@@ -45,7 +45,7 @@ class TypeDef(ABCMeta):
 
     @classmethod
     @abstractmethod
-    def from_bytes(mcs, bytez: bytes) -> "View":
+    def decode_bytes(mcs, bytez: bytes) -> "View":
         raise NotImplementedError
 
     @classmethod
@@ -76,7 +76,7 @@ class FixedByteLengthTypeHelper(TypeDef):
         n = mcs.type_byte_length()
         if n > scope:
             raise Exception(f"scope {scope} is not sufficient for expected byte length {n}")
-        return mcs.from_bytes(stream.read(n))
+        return mcs.decode_bytes(stream.read(n))
 
 
 class View(ABC, object, metaclass=TypeDef):
@@ -109,11 +109,11 @@ class View(ABC, object, metaclass=TypeDef):
         raise NotImplementedError
 
     @abstractmethod
-    def as_bytes(self) -> bytes:
+    def encode_bytes(self) -> bytes:
         raise NotImplementedError
 
     def serialize(self, stream: BinaryIO) -> int:
-        out = self.as_bytes()
+        out = self.encode_bytes()
         stream.write(out)
         return len(out)
 
@@ -164,21 +164,21 @@ class BasicTypeHelperDef(FixedByteLengthTypeHelper, TypeDef):
 
     @classmethod
     @abstractmethod
-    def from_bytes(mcs, bytez: bytes) -> "BasicView":
+    def decode_bytes(mcs, bytez: bytes) -> "BasicView":
         raise NotImplementedError
 
     @classmethod
     def view_from_backing(mcs, node: Node, hook: Optional["ViewHook"]) -> "View":
         if isinstance(node, RootNode):
             size = mcs.type_byte_length()
-            return mcs.from_bytes(node.root[0:size])
+            return mcs.decode_bytes(node.root[0:size])
         else:
             raise Exception("cannot create basic view from composite node!")
 
     @classmethod
     def basic_view_from_backing(mcs, node: RootNode, i: int) -> "BasicView":
         size = mcs.type_byte_length()
-        return mcs.from_bytes(node.root[i*size:(i+1)*size])
+        return mcs.decode_bytes(node.root[i*size:(i+1)*size])
 
     @classmethod
     def pack_views(mcs, views: PyList[View]) -> PyList[Node]:
@@ -204,8 +204,8 @@ class BasicView(FixedByteLengthViewHelper, ABC, metaclass=BasicTypeHelperDef):
         return cls.__class__.default_node()
 
     @classmethod
-    def from_bytes(cls, bytez: bytes) -> "BasicView":
-        return cls.__class__.from_bytes(bytez)
+    def decode_bytes(cls, bytez: bytes) -> "BasicView":
+        return cls.__class__.decode_bytes(bytez)
 
     @classmethod
     def view_from_backing(cls, node: Node, hook: Optional["ViewHook"]) -> "View":
@@ -216,12 +216,12 @@ class BasicView(FixedByteLengthViewHelper, ABC, metaclass=BasicTypeHelperDef):
         return cls.__class__.basic_view_from_backing(node, i)
 
     def backing_from_base(self, base: RootNode, i: int) -> RootNode:
-        section_bytez = self.as_bytes()
+        section_bytez = self.encode_bytes()
         chunk_bytez = base.root[:len(section_bytez)*i] + section_bytez + base.root[len(section_bytez)*(i+1):]
         return RootNode(Root(chunk_bytez))
 
     def get_backing(self) -> Node:
-        bytez = self.as_bytes()
+        bytez = self.encode_bytes()
         return RootNode(Root(bytez + b"\x00" * (32 - len(bytez))))
 
     def set_backing(self, value):

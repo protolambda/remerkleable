@@ -3,9 +3,13 @@ from collections.abc import Sequence as ColSequence
 from abc import ABC, abstractmethod
 import io
 from pymerkles.core import TypeDef, View, BasicTypeHelperDef, BasicView, OFFSET_BYTE_LENGTH
-from pymerkles.basic import uint256, uint8
+from pymerkles.basic import uint256, uint8, uint32
 from pymerkles.tree import Node, subtree_fill_to_length, subtree_fill_to_contents, zero_node, Gindex, Commit, to_gindex, NavigationError
 from pymerkles.subtree import SubtreeTypeDef, SubtreeView, get_depth
+
+
+def decode_offset(stream: BinaryIO) -> uint32:
+    return cast(uint32, uint32.deserialize(stream, OFFSET_BYTE_LENGTH))
 
 
 class MonoSubtreeTypeDef(SubtreeTypeDef):
@@ -41,6 +45,49 @@ class MonoSubtreeTypeDef(SubtreeTypeDef):
                 raise Exception("cannot append a packed element that is not a basic type")
         else:
             return [v.get_backing() for v in views]
+
+    @classmethod
+    @abstractmethod
+    def is_valid_count(mcs, count: int) -> bool:
+        raise NotImplementedError
+
+    @classmethod
+    def deserialize_elements(mcs, stream: BinaryIO, scope: int) -> PyList[View]:
+        elem_cls = mcs.element_cls()
+        if elem_cls.is_fixed_byte_length():
+            elem_byte_length = elem_cls.type_byte_length()
+            if scope % elem_byte_length != 0:
+                raise Exception(f"scope {scope} does not match element byte length {elem_byte_length} multiple")
+            count = scope // elem_byte_length
+            if not mcs.is_valid_count(count):
+                raise Exception(f"count {count} is invalid")
+            return [elem_cls.deserialize(stream, elem_byte_length) for _ in range(count)]
+        else:
+            if scope == 0:
+                if not mcs.is_valid_count(0):
+                    raise Exception("scope cannot be 0, count must not be 0")
+                return []
+            first_offset = decode_offset(stream)
+            if first_offset > scope:
+                raise Exception(f"first offset is too big: {first_offset}, scope: {scope}")
+            if first_offset % OFFSET_BYTE_LENGTH != 0:
+                raise Exception(f"first offset {first_offset} is not a multiple of offset length {OFFSET_BYTE_LENGTH}")
+            count = first_offset // OFFSET_BYTE_LENGTH
+            if not mcs.is_valid_count(count):
+                raise Exception(f"count {count} is invalid")
+            offsets = [first_offset] + [decode_offset(stream) for _ in range(count)] + [uint32(scope)]
+            elem_min, elem_max = elem_cls.min_byte_length(), elem_cls.max_byte_length()
+            elems = []
+            for i in range(count):
+                start, end = offsets[i], offsets[i+1]
+                if end < start:
+                    raise Exception(f"offsets[{i}] value {start} is invalid, next offset is {end}")
+                elem_size = end - start
+                if not (elem_min <= elem_size <= elem_max):
+                    raise Exception(f"offset[{i}] value {start} is invalid, next offset is {end},"
+                                    f" implied size is {elem_size}, size bounds: [{elem_min}, {elem_max}]")
+                elems.append(elem_cls.deserialize(stream, elem_size))
+            return elems
 
 
 class MutSeqLike(ABC, ColSequence, object):
@@ -116,6 +163,10 @@ class ListType(MonoSubtreeTypeDef):
         raise NotImplementedError
 
     @classmethod
+    def is_valid_count(mcs, count: int) -> bool:
+        return 0 <= count <= mcs.limit()
+
+    @classmethod
     def default_node(mcs) -> Node:
         return Commit(zero_node(mcs.contents_depth()), zero_node(0))  # mix-in 0 as list length
 
@@ -136,14 +187,15 @@ class ListType(MonoSubtreeTypeDef):
         return bytes_per_elem * mcs.limit()
 
     @classmethod
-    def from_bytes(mcs, bytez: bytes) -> "List":
+    def decode_bytes(mcs, bytez: bytes) -> "List":
         stream = io.BytesIO()
         stream.write(bytez)
         return mcs.deserialize(stream, len(bytez))
 
     @classmethod
+    @abstractmethod
     def deserialize(mcs, stream: BinaryIO, scope: int) -> "List":
-        raise NotImplementedError  # TODO
+        raise NotImplementedError  # override in parametrized list type
 
     def __repr__(self):
         return f"List[{self.element_cls()}, {self.limit()}]"
@@ -180,6 +232,10 @@ class ListType(MonoSubtreeTypeDef):
             @classmethod
             def limit(mcs) -> int:
                 return limit
+
+            @classmethod
+            def deserialize(mcs, stream: BinaryIO, scope: int) -> List:
+                return SpecialListView(*mcs.deserialize_elements(stream, scope))
 
         class SpecialListView(List, metaclass=SpecialListType):
             pass
@@ -332,7 +388,7 @@ class List(SubtreeView, MutSeqLike, metaclass=ListType):
             return f"List[{self.__class__.element_cls()}, {self.__class__.limit()}]" + \
                    '(' + ', '.join(repr(v) for v in vals.values()) + ')'
 
-    def as_bytes(self) -> bytes:
+    def encode_bytes(self) -> bytes:
         stream = io.BytesIO()
         self.serialize(stream)
         return stream.read()
@@ -367,6 +423,10 @@ class VectorType(MonoSubtreeTypeDef):
         raise NotImplementedError
 
     @classmethod
+    def is_valid_count(mcs, count: int) -> bool:
+        return count == mcs.vector_length()
+
+    @classmethod
     def default_node(mcs) -> Node:
         elem_type: TypeDef = mcs.element_cls()
         length = mcs.to_chunk_length(mcs.vector_length())
@@ -397,14 +457,15 @@ class VectorType(MonoSubtreeTypeDef):
         return bytes_per_elem * mcs.vector_length()
 
     @classmethod
-    def from_bytes(mcs, bytez: bytes) -> "Vector":
+    def decode_bytes(mcs, bytez: bytes) -> "Vector":
         stream = io.BytesIO()
         stream.write(bytez)
         return mcs.deserialize(stream, len(bytez))
 
     @classmethod
+    @abstractmethod
     def deserialize(mcs, stream: BinaryIO, scope: int) -> "Vector":
-        raise NotImplementedError  # TODO
+        raise NotImplementedError  # override in parametrized vector type
 
     def __repr__(self):
         return f"Vector[{self.element_cls()}, {self.vector_length()}]"
@@ -441,6 +502,10 @@ class VectorType(MonoSubtreeTypeDef):
             @classmethod
             def vector_length(mcs) -> int:
                 return length
+
+            @classmethod
+            def deserialize(mcs, stream: BinaryIO, scope: int) -> Vector:
+                return SpecialVectorView(*mcs.deserialize_elements(stream, scope))
 
         # for fixed-size vectors, pre-compute the size.
         if element_view_cls.is_fixed_byte_length():
@@ -523,7 +588,7 @@ class Vector(SubtreeView, MutSeqLike, metaclass=VectorType):
             return f"Vector[{self.__class__.element_cls()}, {self.__class__.vector_length()}]" + \
                    '(' + ', '.join(repr(v) for v in vals.values()) + ')'
 
-    def as_bytes(self) -> bytes:
+    def encode_bytes(self) -> bytes:
         stream = io.BytesIO()
         self.serialize(stream)
         return stream.read()
@@ -578,14 +643,20 @@ class ContainerType(SubtreeTypeDef):
         return total
 
     @classmethod
-    def from_bytes(mcs, bytez: bytes) -> "Vector":
+    def decode_bytes(mcs, bytez: bytes) -> "Container":
         stream = io.BytesIO()
         stream.write(bytez)
         return mcs.deserialize(stream, len(bytez))
 
     @classmethod
-    def deserialize(mcs, stream: BinaryIO, scope: int) -> "Vector":
-        raise NotImplementedError  # TODO
+    def deserialize(mcs, stream: BinaryIO, scope: int) -> "Container":
+        raise NotImplementedError
+
+
+class FieldOffset(NamedTuple):
+    key: str
+    typ: TypeDef
+    offset: int
 
 
 class Container(SubtreeView, metaclass=ContainerType):
@@ -676,7 +747,42 @@ class Container(SubtreeView, metaclass=ContainerType):
             ('  ' + fkey + ': ' + repr(ftype) + ' = ' + get_field_val_repr(fkey))
             for fkey, ftype in zip(fields.keys, fields.types)) + '\n'
 
-    def as_bytes(self) -> bytes:
+    @classmethod
+    def deserialize(cls, stream: BinaryIO, scope: int) -> "Container":
+        fields = cls.fields()
+        field_values: Dict[str, View]
+        if cls.is_fixed_byte_length():
+            field_values = {fkey: ftyp.deserialize(stream, ftyp.type_byte_length())
+                            for fkey, ftyp in zip(fields.keys, fields.types)}
+        else:
+            field_values = {}
+            dyn_fields: PyList[FieldOffset] = []
+            fixed_size = 0
+            for fkey, ftyp in zip(fields.keys, fields.types):
+                if ftyp.is_fixed_byte_length():
+                    fsize = ftyp.type_byte_length()
+                    field_values[fkey] = ftyp.deserialize(stream, fsize)
+                    fixed_size += fsize
+                else:
+                    dyn_fields.append(FieldOffset(key=fkey, typ=ftyp, offset=int(decode_offset(stream))))
+                    fixed_size += OFFSET_BYTE_LENGTH
+            if len(dyn_fields) > 0:
+                if dyn_fields[0].offset < fixed_size:
+                    raise Exception(f"first offset is smaller than expected fixed size")
+                for i, (fkey, ftyp, foffset) in enumerate(dyn_fields):
+                    next_offset = dyn_fields[i + 1].offset if i + 1 < len(dyn_fields) else scope
+                    if foffset > next_offset:
+                        raise Exception(f"offset {i} is invalid: {foffset} larger than next offset {next_offset}")
+                    fsize = next_offset - foffset
+                    f_min_size, f_max_size = ftyp.min_byte_length(), ftyp.max_byte_length()
+                    if not (f_min_size <= fsize <= f_max_size):
+                        raise Exception(f"offset {i} is invalid, size out of bounds: {foffset}, next {next_offset},"
+                                        f" implied size: {fsize}, size bounds: [{f_min_size}, {f_max_size}]")
+                    field_values[fkey] = ftyp.deserialize(stream, fsize)
+        # noinspection PyArgumentList
+        return cls(**field_values)
+
+    def encode_bytes(self) -> bytes:
         stream = io.BytesIO()
         self.serialize(stream)
         return stream.read()

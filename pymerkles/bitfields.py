@@ -130,7 +130,7 @@ class BitListType(BitsType):
         return (mcs.limit() + 7 + 1) // 8
 
     @classmethod
-    def from_bytes(mcs, bytez: bytes) -> "BitList":
+    def decode_bytes(mcs, bytez: bytes) -> "BitList":
         raise NotImplementedError  # TODO
 
     @classmethod
@@ -265,7 +265,7 @@ class BitVectorType(FixedByteLengthTypeHelper, BitsType):
         return (mcs.vector_length() + 7) // 8
 
     @classmethod
-    def from_bytes(mcs, bytez: bytes) -> "BitVector":
+    def decode_bytes(mcs, bytez: bytes) -> "BitVector":
         raise NotImplementedError  # TODO
 
     @classmethod

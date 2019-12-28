@@ -13,7 +13,7 @@ class BoolType(BasicTypeHelperDef):
         return 1
 
     @classmethod
-    def from_bytes(mcs, bytez: bytes) -> BasicView:
+    def decode_bytes(mcs, bytez: bytes) -> BasicView:
         return boolean(bytez != b"\x00")
 
     def __repr__(self):
@@ -22,7 +22,7 @@ class BoolType(BasicTypeHelperDef):
 
 class boolean(int, BasicView, metaclass=BoolType):
 
-    def as_bytes(self) -> bytes:
+    def encode_bytes(self) -> bytes:
         return b"\x01" if self else b"\x00"
 
     def __new__(cls, value: int):  # int value, but can be any subclass of int (bool, Bit, Bool, etc...)
@@ -48,10 +48,10 @@ class uint(int, BasicView, metaclass=UintTypeBase):
     @classmethod
     def coerce_view(cls, v: Any) -> View:
         if isinstance(v, bytes):
-            return cls.from_bytes(v, byteorder='little')
+            return cls.decode_bytes(v, byteorder='little')
         return cls(v)
 
-    def as_bytes(self) -> bytes:
+    def encode_bytes(self) -> bytes:
         return self.to_bytes(length=self.__class__.type_byte_length(), byteorder='little')
 
 
@@ -61,7 +61,7 @@ class Uint8Type(UintTypeBase):
         return 1
 
     @classmethod
-    def from_bytes(mcs, bytez: bytes) -> BasicView:
+    def decode_bytes(mcs, bytez: bytes) -> BasicView:
         return uint8(int.from_bytes(bytez, byteorder='little'))
 
     def __repr__(self):
@@ -78,7 +78,7 @@ class Uint16Type(UintTypeBase):
         return 2
 
     @classmethod
-    def from_bytes(mcs, bytez: bytes) -> BasicView:
+    def decode_bytes(mcs, bytez: bytes) -> BasicView:
         return uint16(int.from_bytes(bytez, byteorder='little'))
 
     def __repr__(self):
@@ -95,7 +95,7 @@ class Uint32Type(UintTypeBase):
         return 4
 
     @classmethod
-    def from_bytes(mcs, bytez: bytes) -> BasicView:
+    def decode_bytes(mcs, bytez: bytes) -> BasicView:
         return uint32(int.from_bytes(bytez, byteorder='little'))
 
     def __repr__(self):
@@ -112,7 +112,7 @@ class Uint64Type(UintTypeBase):
         return 8
 
     @classmethod
-    def from_bytes(mcs, bytez: bytes) -> BasicView:
+    def decode_bytes(mcs, bytez: bytes) -> BasicView:
         return uint64(int.from_bytes(bytez, byteorder='little'))
     
     def __repr__(self):
@@ -129,7 +129,7 @@ class Uint128Type(UintTypeBase):
         return 16
 
     @classmethod
-    def from_bytes(mcs, bytez: bytes) -> BasicView:
+    def decode_bytes(mcs, bytez: bytes) -> BasicView:
         return uint128(int.from_bytes(bytez, byteorder='little'))
 
     def __repr__(self):
@@ -146,7 +146,7 @@ class Uint256Type(UintTypeBase):
         return 32
 
     @classmethod
-    def from_bytes(mcs, bytez: bytes) -> BasicView:
+    def decode_bytes(mcs, bytez: bytes) -> BasicView:
         return uint256(int.from_bytes(bytez, byteorder='little'))
 
     def __repr__(self):
