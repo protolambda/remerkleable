@@ -1,8 +1,9 @@
-from typing import cast, BinaryIO
+from typing import cast, BinaryIO, List as PyList
 from collections.abc import Sequence as ColSequence
 from abc import ABC, abstractmethod
-from pymerkles.core import TypeDef, BackedView, FixedByteLengthTypeHelper, FixedByteLengthViewHelper
-from pymerkles.tree import Node, Commit, zero_node, Gindex, to_gindex, Link, RootNode, NavigationError, Root
+import io
+from pymerkles.core import TypeDef, BackedView, FixedByteLengthTypeHelper, FixedByteLengthViewHelper, pack_bits_to_chunks
+from pymerkles.tree import Node, Commit, zero_node, Gindex, to_gindex, Link, RootNode, NavigationError, Root, subtree_fill_to_contents
 from pymerkles.subtree import get_depth
 from pymerkles.basic import boolean, uint256
 
@@ -131,14 +132,51 @@ class BitListType(BitsType):
 
     @classmethod
     def decode_bytes(mcs, bytez: bytes) -> "BitList":
-        raise NotImplementedError  # TODO
+        stream = io.BytesIO()
+        stream.write(bytez)
+        return mcs.deserialize(stream, len(bytez))
 
     @classmethod
     def deserialize(mcs, stream: BinaryIO, scope: int) -> "BitList":
-        raise NotImplementedError  # TODO
+        if scope < 1:
+            raise Exception("cannot have empty scope for bitlist, need at least a delimiting bit")
+        if scope*8 > mcs.max_byte_length():
+            raise Exception(f"scope is too large: {scope}, max bitlist byte length is: {mcs.max_byte_length()}")
+        chunks: PyList[Node] = []
+        bytelen = scope - 1  # excluding the last byte (which contains the delimiting bit)
+        while scope > 32:
+            chunks.append(RootNode(Root(stream.read(32))))
+            scope -= 32
+        # scope is [1, 32] here
+        last_chunk_part = stream.read(scope)
+        last_byte = int(last_chunk_part[scope-1])
+        if last_byte == 0:
+            raise Exception("last byte must not be 0: bitlist requires delimiting bit")
+        last_byte_bitlen = last_byte.bit_length() - 1  # excluding the delimiting bit
+        last_chunk = last_chunk_part[:scope-1] + bytes(last_byte ^ (1 << last_byte_bitlen))
+        last_chunk += b"\x00" * (32 - len(last_chunk))
+        chunks.append(RootNode(Root(last_chunk)))
+        bitlen = bytelen * 8 + last_byte_bitlen
+        if bitlen > mcs.limit():
+            raise Exception(f"bitlist too long: {bitlen}, delimiting bit is over limit ({mcs.limit()})")
+        contents = subtree_fill_to_contents(chunks, mcs.contents_depth())
+        backing = Commit(contents, uint256(bitlen).get_backing())
+        return cast(BitList, mcs.view_from_backing(backing))
 
 
 class BitList(BitsView, metaclass=BitListType):
+    def __new__(cls, *args, **kwargs):
+        vals = list(args)
+        if len(vals) > 0:
+            limit = cls.__class__.limit()
+            if len(vals) > limit:
+                raise Exception(f"too many bitlist inputs: {len(vals)}, limit is: {limit}")
+            input_bits = list(map(bool, vals))
+            input_nodes = pack_bits_to_chunks(input_bits)
+            contents = subtree_fill_to_contents(input_nodes, cls.__class__.contents_depth())
+            kwargs['backing'] = Commit(contents, uint256(len(input_bits)).get_backing())
+        return super().__new__(cls, **kwargs)
+
     def length(self) -> int:
         ll_node = super().get_backing().getter(Gindex(3))
         ll = cast(uint256, uint256.view_from_backing(node=ll_node, hook=None))
@@ -266,14 +304,42 @@ class BitVectorType(FixedByteLengthTypeHelper, BitsType):
 
     @classmethod
     def decode_bytes(mcs, bytez: bytes) -> "BitVector":
-        raise NotImplementedError  # TODO
+        stream = io.BytesIO()
+        stream.write(bytez)
+        return mcs.deserialize(stream, len(bytez))
 
     @classmethod
     def deserialize(mcs, stream: BinaryIO, scope: int) -> "BitVector":
-        raise NotImplementedError  # TODO
+        if scope*8 != mcs.max_byte_length():
+            raise Exception(f"scope is invalid: {scope}, bitvector byte length is: {mcs.type_byte_length()}")
+        chunks: PyList[Node] = []
+        bytelen = scope - 1  # excluding the last byte
+        while scope > 32:
+            chunks.append(RootNode(Root(stream.read(32))))
+            scope -= 32
+        # scope is [1, 32] here
+        last_chunk_part = stream.read(scope)
+        last_byte = int(last_chunk_part[scope-1])
+        bitlen = bytelen * 8 + last_byte.bit_length()
+        if bitlen > mcs.vector_length():
+            raise Exception(f"bitvector too long: {bitlen}, last byte has bits over bit length ({mcs.vector_length()})")
+        last_chunk = last_chunk_part + (b"\x00" * (32 - len(last_chunk_part)))
+        chunks.append(RootNode(Root(last_chunk)))
+        backing = subtree_fill_to_contents(chunks, mcs.tree_depth())
+        return cast(BitVector, mcs.view_from_backing(backing))
 
 
 class BitVector(FixedByteLengthViewHelper, BitsView, metaclass=BitVectorType):
+    def __new__(cls, *args, **kwargs):
+        vals = list(args)
+        if len(vals) > 0:
+            veclen = cls.__class__.vector_length()
+            if len(vals) != veclen:
+                raise Exception(f"incorrect bitvector input: {len(vals)} bits, vector length is: {veclen}")
+            input_bits = list(map(bool, vals))
+            input_nodes = pack_bits_to_chunks(input_bits)
+            kwargs['backing'] = subtree_fill_to_contents(input_nodes, cls.__class__.tree_depth())
+        return super().__new__(cls, **kwargs)
 
     def length(self) -> int:
         return self.__class__.vector_length()

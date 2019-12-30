@@ -1,6 +1,9 @@
 from typing import Callable, NewType, Optional, Any, cast, List as PyList, BinaryIO
 from abc import ABCMeta, ABC, abstractmethod
 from pymerkles.tree import Node, Root, RootNode, zero_node
+from itertools import zip_longest
+from typing import Iterable, Tuple
+
 
 OFFSET_BYTE_LENGTH = 4
 
@@ -18,7 +21,7 @@ class TypeDef(ABCMeta):
 
     @classmethod
     @abstractmethod
-    def view_from_backing(mcs, node: Node, hook: Optional["ViewHook"]) -> "View":
+    def view_from_backing(mcs, node: Node, hook: Optional["ViewHook"] = None) -> "View":
         raise NotImplementedError
 
     @classmethod
@@ -131,7 +134,7 @@ class BackedView(View, metaclass=TypeDef):
     def view_from_backing(cls, node: Node, hook: Optional["ViewHook"]) -> "View":
         return cls(backing=node, hook=hook)
 
-    def __new__(cls, backing: Optional[Node] = None, hook=None, **kwargs):
+    def __new__(cls, backing: Optional[Node] = None, hook: Optional["ViewHook"] = None, **kwargs):
         if backing is None:
             backing = cls.default_node()
         out = super().__new__(cls, **kwargs)
@@ -168,7 +171,7 @@ class BasicTypeHelperDef(FixedByteLengthTypeHelper, TypeDef):
         raise NotImplementedError
 
     @classmethod
-    def view_from_backing(mcs, node: Node, hook: Optional["ViewHook"]) -> "View":
+    def view_from_backing(mcs, node: Node, hook: Optional["ViewHook"] = None) -> "View":
         if isinstance(node, RootNode):
             size = mcs.type_byte_length()
             return mcs.decode_bytes(node.root[0:size])
@@ -182,20 +185,7 @@ class BasicTypeHelperDef(FixedByteLengthTypeHelper, TypeDef):
 
     @classmethod
     def pack_views(mcs, views: PyList[View]) -> PyList[Node]:
-        elems_per_chunk = 32 // mcs.type_byte_length()
-        chunk: RootNode = zero_node(0)
-        i = 0
-        out = []
-        for v in views:
-            if not isinstance(v.__class__, mcs):
-                raise Exception("element is not the expected type")
-            chunk = cast(BasicView, v).backing_from_base(chunk, i % elems_per_chunk)
-            i += 1
-            if i % elems_per_chunk == 0:
-                out.append(chunk)
-        if i % elems_per_chunk != 0:
-            out.append(chunk)
-        return out
+        return list(pack_ints_to_chunks((cast(int, v) for v in views), 32 // mcs.type_byte_length()))
 
 
 class BasicView(FixedByteLengthViewHelper, ABC, metaclass=BasicTypeHelperDef):
@@ -226,3 +216,27 @@ class BasicView(FixedByteLengthViewHelper, ABC, metaclass=BasicTypeHelperDef):
 
     def set_backing(self, value):
         raise Exception("cannot change the backing of a basic view")
+
+
+# recipe from more-itertools, should have been in itertools really.
+def grouper(items: Iterable, n: int, fillvalue=None) -> Iterable[Tuple]:
+    """Collect data into fixed-length chunks or blocks
+       grouper('ABCDEFG', 3, 'x') --> ABC DEF Gxx"""
+    args = [iter(items)] * n
+    # The *same* iterator is referenced n times, thus zip produces tuples of n elements from the same iterator
+    return zip_longest(*args, fillvalue=fillvalue)
+
+
+def pack_ints_to_chunks(items: Iterable[int], items_per_chunk: int) -> PyList[Node]:
+    item_byte_len = 32 // items_per_chunk
+    return [RootNode(Root(b"".join(v.to_bytes(length=item_byte_len, byteorder='little') for v in chunk_elems)))
+            for chunk_elems in grouper(items, items_per_chunk, fillvalue=0)]
+
+
+def bits_to_byte(byte: Tuple[bool, bool, bool, bool, bool, bool, bool, bool]) -> bytes:
+    return sum([byte[i] << i for i in range(0, 8)]).to_bytes(length=1, byteorder='little')
+
+
+def pack_bits_to_chunks(items: Iterable[bool]) -> PyList[Node]:
+    return [RootNode(Root(b"".join(chunk_bytes))) for chunk_bytes in
+            grouper(map(bits_to_byte, grouper(items, 8, fillvalue=0)), 32, fillvalue=b"\x00")]

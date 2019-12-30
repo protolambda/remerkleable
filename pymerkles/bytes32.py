@@ -21,7 +21,7 @@ class Bytes32TypeHelper(FixedByteLengthTypeHelper, TypeDef):
         return zero_node(0)
 
     @classmethod
-    def view_from_backing(mcs, node: Node, hook: Optional["ViewHook"]) -> "View":
+    def view_from_backing(mcs, node: Node, hook: Optional["ViewHook"] = None) -> "View":
         if isinstance(node, RootNode):
             return Bytes32(node.root)
         else:

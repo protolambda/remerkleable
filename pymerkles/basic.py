@@ -48,7 +48,7 @@ class uint(int, BasicView, metaclass=UintTypeBase):
     @classmethod
     def coerce_view(cls, v: Any) -> View:
         if isinstance(v, bytes):
-            return cls.decode_bytes(v, byteorder='little')
+            return cls.decode_bytes(v)
         return cls(v)
 
     def encode_bytes(self) -> bytes:
