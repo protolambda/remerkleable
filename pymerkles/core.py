@@ -1,6 +1,6 @@
 from typing import Callable, NewType, Optional, Any, cast, List as PyList, BinaryIO
 from abc import ABCMeta, ABC, abstractmethod
-from pymerkles.tree import Node, Root, RootNode, zero_node
+from pymerkles.tree import Node, Root, RootNode, zero_node, merkle_hash
 from itertools import zip_longest
 from typing import Iterable, Tuple
 
@@ -111,6 +111,9 @@ class View(ABC, object, metaclass=TypeDef):
     def value_byte_length(self) -> int:
         raise NotImplementedError
 
+    def __bytes__(self):
+        return self.encode_bytes()
+
     @abstractmethod
     def encode_bytes(self) -> bytes:
         raise NotImplementedError
@@ -119,6 +122,15 @@ class View(ABC, object, metaclass=TypeDef):
         out = self.encode_bytes()
         stream.write(out)
         return len(out)
+
+    def hash_tree_root(self) -> Root:
+        return self.get_backing().merkle_root(merkle_hash)
+
+    def __eq__(self, other):
+        # TODO: should we check types here?
+        if not isinstance(other, View):
+            other = self.__class__.coerce_view(other)
+        return self.hash_tree_root() == other.hash_tree_root()
 
 
 class FixedByteLengthViewHelper(View, metaclass=FixedByteLengthTypeHelper):

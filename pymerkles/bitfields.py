@@ -65,7 +65,11 @@ class BitsView(BackedView, ColSequence, ABC, metaclass=BitsType):
         length = self.length()
         if isinstance(k, slice):
             start = 0 if k.start is None else k.start
+            if start < 0:
+                start = start % length
             end = length if k.stop is None else k.stop
+            if end < 0:
+                end = end % length
             return [self.get(i) for i in range(start, end)]
         else:
             return self.get(k)
@@ -262,7 +266,7 @@ class BitList(BitsView, metaclass=BitListType):
         # bit count in bytes rounded up + delimiting bit
         return (self.length() + 7 + 1) // 8
 
-    def to_bytes(self) -> bytes:
+    def encode_bytes(self) -> bytes:
         raise NotImplementedError  # TODO concat chunks, end with delimiting bit
 
     def serialize(self, stream: BinaryIO) -> int:
@@ -362,7 +366,7 @@ class BitVector(FixedByteLengthViewHelper, BitsView, metaclass=BitVectorType):
             bitstr = " *partial bits* "
         return f"BitVector[{length}]({bitstr})"
 
-    def to_bytes(self) -> bytes:
+    def encode_bytes(self) -> bytes:
         raise NotImplementedError  # TODO concat chunks, end at length
 
     def serialize(self, stream: BinaryIO) -> int:

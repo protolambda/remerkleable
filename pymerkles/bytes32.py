@@ -36,6 +36,13 @@ class Bytes32(bytes, FixedByteLengthViewHelper, View, metaclass=Bytes32TypeHelpe
         if len(args) == 0:
             return super().__new__(cls, b"\x00" * 32, **kwargs)
         else:
+            if len(args) == 1:
+                val = args[0]
+                if isinstance(val, str):
+                    if val[:2] == '0x':
+                        val = val[2:]
+                    val = bytes.fromhex(val)
+                args = [val]
             out = super().__new__(cls, *args, **kwargs)
             if len(out) != 32:
                 raise Exception(f"Bytes32 must be exactly 32 bytes, not {len(out)}")

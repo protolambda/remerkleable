@@ -1,8 +1,9 @@
-from typing import Sequence, NamedTuple, cast, List as PyList, Dict, Any, BinaryIO
+from typing import Sequence, NamedTuple, cast, List as PyList, Dict, Any, BinaryIO, Optional
 from collections.abc import Sequence as ColSequence
+from itertools import chain
 from abc import ABC, abstractmethod
 import io
-from pymerkles.core import TypeDef, View, BasicTypeHelperDef, BasicView, OFFSET_BYTE_LENGTH
+from pymerkles.core import TypeDef, View, BasicTypeHelperDef, BasicView, OFFSET_BYTE_LENGTH, ViewHook
 from pymerkles.basic import uint256, uint8, uint32
 from pymerkles.tree import Node, subtree_fill_to_length, subtree_fill_to_contents, zero_node, Gindex, Commit, to_gindex, NavigationError
 from pymerkles.subtree import SubtreeTypeDef, SubtreeView, get_depth
@@ -90,7 +91,7 @@ class MonoSubtreeTypeDef(SubtreeTypeDef):
             return elems
 
 
-class MutSeqLike(ABC, ColSequence, object):
+class MutSeqLike(ABC, ColSequence, object, metaclass=MonoSubtreeTypeDef):
 
     @abstractmethod
     def length(self) -> int:
@@ -109,6 +110,12 @@ class MutSeqLike(ABC, ColSequence, object):
 
     def __iter__(self):
         return iter(self.get(i) for i in range(self.length()))
+
+    def __add__(self, other):
+        if issubclass(self.__class__.element_cls(), uint8):
+            return bytes(self) + bytes(other)
+        else:
+            return list(chain(self, other))
 
     def __getitem__(self, k):
         length = self.length()
@@ -244,10 +251,22 @@ class ListType(MonoSubtreeTypeDef):
 
 
 class List(SubtreeView, MutSeqLike, metaclass=ListType):
+    def __new__(cls, *args, backing: Optional[Node] = None, hook: Optional[ViewHook] = None, **kwargs):
+        if backing is not None:
+            if len(args) != 0:
+                raise Exception("cannot have both a backing and elements to init List")
+            return super().__new__(cls, backing=backing, hook=hook, **kwargs)
 
-    def __new__(cls, *args, **kwargs):
         elem_cls = cls.__class__.element_cls()
         vals = list(args)
+        if issubclass(elem_cls, uint8) and len(vals) == 1:
+            val = args[0]
+            if isinstance(val, bytes):
+                vals = list(val)
+            if isinstance(val, str):
+                if val[:2] == '0x':
+                    val = val[2:]
+                vals = list(bytes.fromhex(val))
         if len(vals) > 0:
             limit = cls.__class__.limit()
             if len(vals) > limit:
@@ -260,8 +279,8 @@ class List(SubtreeView, MutSeqLike, metaclass=ListType):
                     input_views.append(elem_cls.coerce_view(el))
             input_nodes = cls.__class__.views_into_chunks(input_views)
             contents = subtree_fill_to_contents(input_nodes, cls.__class__.contents_depth())
-            kwargs['backing'] = Commit(contents, uint256(len(input_views)).get_backing())
-        return super().__new__(cls, **kwargs)
+            backing = Commit(contents, uint256(len(input_views)).get_backing())
+        return super().__new__(cls, backing=backing, hook=hook, **kwargs)
 
     def length(self) -> int:
         ll_node = super().get_backing().getter(Gindex(3))
@@ -280,9 +299,11 @@ class List(SubtreeView, MutSeqLike, metaclass=ListType):
         if ll >= self.__class__.limit():
             raise Exception("list is maximum capacity, cannot append")
         i = ll
+        elem_type: TypeDef = self.__class__.element_cls()
+        if not isinstance(v, elem_type):
+            v = elem_type.coerce_view(v)
         if self.__class__.is_packed():
             next_backing = self.get_backing()
-            elem_type: TypeDef = self.__class__.element_cls()
             if isinstance(elem_type, BasicTypeHelperDef):
                 if not isinstance(v, BasicView):
                     raise Exception("input element is not a basic view")
@@ -391,6 +412,7 @@ class List(SubtreeView, MutSeqLike, metaclass=ListType):
     def encode_bytes(self) -> bytes:
         stream = io.BytesIO()
         self.serialize(stream)
+        stream.seek(0)
         return stream.read()
 
     def serialize(self, stream: BinaryIO) -> int:
@@ -533,11 +555,22 @@ class VectorType(MonoSubtreeTypeDef):
 
 
 class Vector(SubtreeView, MutSeqLike, metaclass=VectorType):
-    def __new__(cls, *args, **kwargs):
+    def __new__(cls, *args, backing: Optional[Node] = None, hook: Optional[ViewHook] = None, **kwargs):
+        if backing is not None:
+            if len(args) != 0:
+                raise Exception("cannot have both a backing and elements to init List")
+            return super().__new__(cls, backing=backing, hook=hook, **kwargs)
+
         elem_cls = cls.__class__.element_cls()
         vals = list(args)
-        if issubclass(elem_cls, uint8) and len(vals) == 1 and isinstance(vals[0], bytes):
-            vals = list(vals[0])
+        if issubclass(elem_cls, uint8) and len(vals) == 1:
+            val = args[0]
+            if isinstance(val, bytes):
+                vals = list(val)
+            if isinstance(val, str):
+                if val[:2] == '0x':
+                    val = val[2:]
+                vals = list(bytes.fromhex(val))
         if len(vals) > 0:
             vector_length = cls.__class__.vector_length()
             if len(vals) != vector_length:
@@ -549,8 +582,8 @@ class Vector(SubtreeView, MutSeqLike, metaclass=VectorType):
                 else:
                     input_views.append(elem_cls.coerce_view(el))
             input_nodes = cls.__class__.views_into_chunks(input_views)
-            kwargs['backing'] = subtree_fill_to_contents(input_nodes, cls.__class__.tree_depth())
-        return super().__new__(cls, **kwargs)
+            backing = subtree_fill_to_contents(input_nodes, cls.__class__.tree_depth())
+        return super().__new__(cls, backing=backing, hook=hook, **kwargs)
 
     def get(self, i: int) -> View:
         if i < 0 or i > self.__class__.vector_length():
@@ -591,10 +624,16 @@ class Vector(SubtreeView, MutSeqLike, metaclass=VectorType):
     def encode_bytes(self) -> bytes:
         stream = io.BytesIO()
         self.serialize(stream)
+        stream.seek(0)
         return stream.read()
 
     def serialize(self, stream: BinaryIO) -> int:
-        raise NotImplementedError  # TODO
+        elem_cls = self.__class__.element_cls()
+        if issubclass(elem_cls, uint8):
+            out = bytes(self.__iter__())
+            stream.write(out)
+            return len(out)
+        raise NotImplementedError  # TODO other element types
 
 
 class Fields(NamedTuple):
@@ -661,7 +700,12 @@ class FieldOffset(NamedTuple):
 
 class Container(SubtreeView, metaclass=ContainerType):
 
-    def __new__(cls, *args, **kwargs):
+    def __new__(cls, *args, backing: Optional[Node] = None, hook: Optional[ViewHook] = None, **kwargs):
+        if backing is not None:
+            if len(args) != 0:
+                raise Exception("cannot have both a backing and elements to init List")
+            return super().__new__(cls, backing=backing, hook=hook, **kwargs)
+
         fields = cls.fields()
 
         input_nodes = []
@@ -676,8 +720,8 @@ class Container(SubtreeView, metaclass=ContainerType):
             else:
                 fnode = cast(TypeDef, ftyp).default_node()
             input_nodes.append(fnode)
-        kwargs['backing'] = subtree_fill_to_contents(input_nodes, cls.tree_depth())
-        return super().__new__(cls, *args, **kwargs)
+        backing = subtree_fill_to_contents(input_nodes, cls.tree_depth())
+        return super().__new__(cls, backing=backing, hook=hook, **kwargs)
 
     @classmethod
     def fields(cls) -> Fields:
@@ -785,6 +829,7 @@ class Container(SubtreeView, metaclass=ContainerType):
     def encode_bytes(self) -> bytes:
         stream = io.BytesIO()
         self.serialize(stream)
+        stream.seek(0)
         return stream.read()
 
     def serialize(self, stream: BinaryIO) -> int:
