@@ -3,12 +3,6 @@ from pymerkles.core import TypeDef, View, BackedView, BasicTypeHelperDef, BasicV
 from pymerkles.tree import Link, to_gindex, RootNode, NavigationError
 
 
-# Get the depth required for a given element count
-# (in out): (0 0), (1 1), (2 1), (3 2), (4 2), (5 3), (6 3), (7 3), (8 3), (9 4)
-def get_depth(elem_count: int) -> int:
-    return (elem_count - 1).bit_length()
-
-
 class SubtreeTypeDef(ABC, TypeDef):
     @classmethod
     @abstractmethod

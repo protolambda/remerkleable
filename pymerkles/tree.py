@@ -2,6 +2,13 @@ from typing import Callable, NewType, List, Optional
 from hashlib import sha256
 from abc import ABC, abstractmethod
 
+
+# Get the depth required for a given element count
+# (in out): (0 0), (1 1), (2 1), (3 2), (4 2), (5 3), (6 3), (7 3), (8 3), (9 4)
+def get_depth(elem_count: int) -> int:
+    return (elem_count - 1).bit_length()
+
+
 Gindex = NewType("Gindex", int)
 
 
@@ -262,3 +269,10 @@ class RootNode(Node):
 
     def __repr__(self):
         return f"0x{self.root.hex()}"
+
+
+def must_leaf(n: Node) -> Root:
+    if not isinstance(n, RootNode):
+        raise Exception(f"node {n} is not a rootnode")
+    else:
+        return n.root

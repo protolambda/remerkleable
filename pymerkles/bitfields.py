@@ -3,8 +3,8 @@ from collections.abc import Sequence as ColSequence
 from abc import ABC, abstractmethod
 import io
 from pymerkles.core import TypeDef, BackedView, FixedByteLengthTypeHelper, FixedByteLengthViewHelper, pack_bits_to_chunks
-from pymerkles.tree import Node, Commit, zero_node, Gindex, to_gindex, Link, RootNode, NavigationError, Root, subtree_fill_to_contents
-from pymerkles.subtree import get_depth
+from pymerkles.tree import Node, Commit, zero_node, Gindex, to_gindex, Link, RootNode, NavigationError,\
+    Root, subtree_fill_to_contents, get_depth
 from pymerkles.basic import boolean, uint256
 
 

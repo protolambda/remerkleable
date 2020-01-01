@@ -1,4 +1,4 @@
-from typing import Callable, NewType, Optional, Any, cast, List as PyList, BinaryIO
+from typing import Callable, NewType, Optional, Any, cast, List as PyList, BinaryIO, Union
 from abc import ABCMeta, ABC, abstractmethod
 from pymerkles.tree import Node, Root, RootNode, zero_node, merkle_hash
 from itertools import zip_longest
@@ -77,8 +77,8 @@ class FixedByteLengthTypeHelper(TypeDef):
     @classmethod
     def deserialize(mcs, stream: BinaryIO, scope: int) -> "View":
         n = mcs.type_byte_length()
-        if n > scope:
-            raise Exception(f"scope {scope} is not sufficient for expected byte length {n}")
+        if n != scope:
+            raise Exception(f"scope {scope} is not valid for expected byte length {n}")
         return mcs.decode_bytes(stream.read(n))
 
 
@@ -245,10 +245,18 @@ def pack_ints_to_chunks(items: Iterable[int], items_per_chunk: int) -> PyList[No
             for chunk_elems in grouper(items, items_per_chunk, fillvalue=0)]
 
 
-def bits_to_byte(byte: Tuple[bool, bool, bool, bool, bool, bool, bool, bool]) -> bytes:
-    return sum([byte[i] << i for i in range(0, 8)]).to_bytes(length=1, byteorder='little')
+def bits_to_byte(byte: Tuple[bool, bool, bool, bool, bool, bool, bool, bool]) -> int:
+    return sum([byte[i] << i for i in range(0, 8)])
+
+
+def byte_to_bytes(b: int) -> bytes:
+    return b.to_bytes(length=1, byteorder='little')
 
 
 def pack_bits_to_chunks(items: Iterable[bool]) -> PyList[Node]:
-    return [RootNode(Root(b"".join(chunk_bytes))) for chunk_bytes in
-            grouper(map(bits_to_byte, grouper(items, 8, fillvalue=0)), 32, fillvalue=b"\x00")]
+    return pack_bytes_to_chunks(map(bits_to_byte, grouper(items, 8, fillvalue=0)))
+
+
+def pack_bytes_to_chunks(items: Iterable[int]) -> PyList[Node]:
+    return [RootNode(Root(b"".join(map(byte_to_bytes, chunk_bytes))))
+            for chunk_bytes in grouper(items, 32, fillvalue=b"\x00")]

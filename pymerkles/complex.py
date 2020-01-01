@@ -5,8 +5,9 @@ from abc import ABC, abstractmethod
 import io
 from pymerkles.core import TypeDef, View, BasicTypeHelperDef, BasicView, OFFSET_BYTE_LENGTH, ViewHook
 from pymerkles.basic import uint256, uint8, uint32
-from pymerkles.tree import Node, subtree_fill_to_length, subtree_fill_to_contents, zero_node, Gindex, Commit, to_gindex, NavigationError
-from pymerkles.subtree import SubtreeTypeDef, SubtreeView, get_depth
+from pymerkles.tree import Node, subtree_fill_to_length, subtree_fill_to_contents,\
+    zero_node, Gindex, Commit, to_gindex, NavigationError, get_depth
+from pymerkles.subtree import SubtreeTypeDef, SubtreeView
 
 
 def decode_offset(stream: BinaryIO) -> uint32:

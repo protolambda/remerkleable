@@ -1,11 +1,14 @@
 from pymerkles.complex import Container, List, Vector
 from pymerkles.basic import uint64, boolean
-from pymerkles.bytes32 import Bytes32
+from pymerkles.bytes_vector import ByteVector
 from pymerkles.tree import merkle_hash
+
+Bytes32 = ByteVector[32]
+Bytes48 = ByteVector[48]
 
 
 class Validator(Container):
-    pubkey: Bytes32  # TODO basic vec type for bytes48
+    pubkey: Bytes48
     withdrawal_credentials: Bytes32  # Commitment to pubkey for withdrawals
     effective_balance: uint64  # Balance at stake
     slashed: boolean
@@ -25,6 +28,7 @@ a = Validator
 print(a)
 b = a()
 print(b)
+print(b.pubkey)
 
 print(Bytes32)
 print(Bytes32())
