@@ -2,6 +2,7 @@ from pymerkles.tree import Node, RootNode, Root, subtree_fill_to_contents, get_d
     subtree_fill_to_length
 from pymerkles.core import View, ViewHook, TypeDef, zero_node, FixedByteLengthTypeHelper, FixedByteLengthViewHelper, pack_bytes_to_chunks
 from typing import Optional, Any
+from types import GeneratorType
 
 
 class ByteVectorType(FixedByteLengthTypeHelper, TypeDef):
@@ -66,6 +67,8 @@ class ByteVector(bytes, FixedByteLengthViewHelper, View, metaclass=ByteVectorTyp
             return super().__new__(cls, b"\x00" * byte_len, **kwargs)
         elif len(args) == 1:
             val = args[0]
+            if isinstance(args[0], (GeneratorType, list, tuple)):
+                val = list(args[0])
             if isinstance(val, str):
                 if val[:2] == '0x':
                     val = val[2:]

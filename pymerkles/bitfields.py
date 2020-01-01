@@ -1,4 +1,5 @@
 from typing import cast, BinaryIO, List as PyList
+from types import GeneratorType
 from collections.abc import Sequence as ColSequence
 from abc import ABC, abstractmethod
 import io
@@ -172,6 +173,8 @@ class BitList(BitsView, metaclass=BitListType):
     def __new__(cls, *args, **kwargs):
         vals = list(args)
         if len(vals) > 0:
+            if len(vals) == 1 and isinstance(vals[0], (GeneratorType, list, tuple)):
+                vals = list(vals[0])
             limit = cls.__class__.limit()
             if len(vals) > limit:
                 raise Exception(f"too many bitlist inputs: {len(vals)}, limit is: {limit}")
@@ -337,6 +340,8 @@ class BitVector(FixedByteLengthViewHelper, BitsView, metaclass=BitVectorType):
     def __new__(cls, *args, **kwargs):
         vals = list(args)
         if len(vals) > 0:
+            if len(vals) == 1 and isinstance(vals[0], (GeneratorType, list, tuple)):
+                vals = list(vals[0])
             veclen = cls.__class__.vector_length()
             if len(vals) != veclen:
                 raise Exception(f"incorrect bitvector input: {len(vals)} bits, vector length is: {veclen}")

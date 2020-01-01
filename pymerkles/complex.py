@@ -1,4 +1,5 @@
 from typing import Sequence, NamedTuple, cast, List as PyList, Dict, Any, BinaryIO, Optional
+from types import GeneratorType
 from collections.abc import Sequence as ColSequence
 from itertools import chain
 from abc import ABC, abstractmethod
@@ -260,14 +261,17 @@ class List(SubtreeView, MutSeqLike, metaclass=ListType):
 
         elem_cls = cls.__class__.element_cls()
         vals = list(args)
-        if issubclass(elem_cls, uint8) and len(vals) == 1:
-            val = args[0]
-            if isinstance(val, bytes):
-                vals = list(val)
-            if isinstance(val, str):
-                if val[:2] == '0x':
-                    val = val[2:]
-                vals = list(bytes.fromhex(val))
+        if len(vals) == 1:
+            if isinstance(vals[0], (GeneratorType, list, tuple)):
+                vals = list(vals[0])
+            if issubclass(elem_cls, uint8):
+                val = vals[0]
+                if isinstance(val, bytes):
+                    vals = list(val)
+                if isinstance(val, str):
+                    if val[:2] == '0x':
+                        val = val[2:]
+                    vals = list(bytes.fromhex(val))
         if len(vals) > 0:
             limit = cls.__class__.limit()
             if len(vals) > limit:
@@ -559,19 +563,22 @@ class Vector(SubtreeView, MutSeqLike, metaclass=VectorType):
     def __new__(cls, *args, backing: Optional[Node] = None, hook: Optional[ViewHook] = None, **kwargs):
         if backing is not None:
             if len(args) != 0:
-                raise Exception("cannot have both a backing and elements to init List")
+                raise Exception("cannot have both a backing and elements to init Vector")
             return super().__new__(cls, backing=backing, hook=hook, **kwargs)
 
         elem_cls = cls.__class__.element_cls()
         vals = list(args)
-        if issubclass(elem_cls, uint8) and len(vals) == 1:
-            val = args[0]
-            if isinstance(val, bytes):
-                vals = list(val)
-            if isinstance(val, str):
-                if val[:2] == '0x':
-                    val = val[2:]
-                vals = list(bytes.fromhex(val))
+        if len(vals) == 1:
+            if isinstance(vals[0], (GeneratorType, list, tuple)):
+                vals = list(vals[0])
+            if issubclass(elem_cls, uint8):
+                val = vals[0]
+                if isinstance(val, bytes):
+                    vals = list(val)
+                if isinstance(val, str):
+                    if val[:2] == '0x':
+                        val = val[2:]
+                    vals = list(bytes.fromhex(val))
         if len(vals) > 0:
             vector_length = cls.__class__.vector_length()
             if len(vals) != vector_length:
@@ -647,50 +654,11 @@ class ContainerType(SubtreeTypeDef):
     @classmethod
     @abstractmethod
     def fields(mcs) -> Fields:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def __repr__(self):
         return f"{self.__name__}(Container)\n" + '\n'.join(
             ('  ' + fkey + ': ' + repr(ftype)) for fkey, ftype in zip(self.fields().keys, self.fields().types)) + '\n'
-
-    @classmethod
-    def is_fixed_byte_length(mcs) -> bool:
-        return all(f.is_fixed_byte_length() for f in mcs.fields().types)
-
-    @classmethod
-    def type_byte_length(mcs) -> int:
-        if mcs.is_fixed_byte_length():
-            return mcs.min_byte_length()
-        else:
-            raise Exception("dynamic length container does not have a fixed byte length")
-
-    @classmethod
-    def min_byte_length(mcs) -> int:
-        total = 0
-        for ftyp in mcs.fields().types:
-            if not ftyp.is_fixed_byte_length():
-                total += OFFSET_BYTE_LENGTH
-            total += ftyp.min_byte_length()
-        return total
-
-    @classmethod
-    def max_byte_length(mcs) -> int:
-        total = 0
-        for ftyp in mcs.fields().types:
-            if not ftyp.is_fixed_byte_length():
-                total += OFFSET_BYTE_LENGTH
-            total += ftyp.max_byte_length()
-        return total
-
-    @classmethod
-    def decode_bytes(mcs, bytez: bytes) -> "Container":
-        stream = io.BytesIO()
-        stream.write(bytez)
-        return mcs.deserialize(stream, len(bytez))
-
-    @classmethod
-    def deserialize(mcs, stream: BinaryIO, scope: int) -> "Container":
-        raise NotImplementedError
 
 
 class FieldOffset(NamedTuple):
@@ -700,6 +668,10 @@ class FieldOffset(NamedTuple):
 
 
 class Container(SubtreeView, metaclass=ContainerType):
+    # Container types should declare fields through class annotations.
+    # If none are specified, it will fall back on this (to avoid annotations of super classes),
+    # and error on construction, since empty container types are invalid.
+    _empty_annotations: bool
 
     def __new__(cls, *args, backing: Optional[Node] = None, hook: Optional[ViewHook] = None, **kwargs):
         if backing is not None:
@@ -727,7 +699,45 @@ class Container(SubtreeView, metaclass=ContainerType):
     @classmethod
     def fields(cls) -> Fields:
         annot = cls.__annotations__
+        if '_empty_annotations' in annot.keys():
+            raise Exception("detected fallback empty annotation, cannot have container type without fields")
         return Fields(keys=list(annot.keys()), types=[v for v in annot.values()])
+
+    @classmethod
+    def is_fixed_byte_length(mcs) -> bool:
+        return all(f.is_fixed_byte_length() for f in mcs.fields().types)
+
+    @classmethod
+    def type_byte_length(mcs) -> int:
+        if mcs.is_fixed_byte_length():
+            return mcs.min_byte_length()
+        else:
+            raise Exception("dynamic length container does not have a fixed byte length")
+
+
+    @classmethod
+    def min_byte_length(mcs) -> int:
+        total = 0
+        for ftyp in mcs.fields().types:
+            if not ftyp.is_fixed_byte_length():
+                total += OFFSET_BYTE_LENGTH
+            total += ftyp.min_byte_length()
+        return total
+
+    @classmethod
+    def max_byte_length(mcs) -> int:
+        total = 0
+        for ftyp in mcs.fields().types:
+            if not ftyp.is_fixed_byte_length():
+                total += OFFSET_BYTE_LENGTH
+            total += ftyp.max_byte_length()
+        return total
+
+    @classmethod
+    def decode_bytes(mcs, bytez: bytes) -> "Container":
+        stream = io.BytesIO()
+        stream.write(bytez)
+        return mcs.deserialize(stream, len(bytez))
 
     @classmethod
     def is_packed(cls) -> bool:
