@@ -1,4 +1,4 @@
-from typing import Callable, NewType, Optional, Any, cast, List as PyList, BinaryIO, Union
+from typing import Callable, NewType, Optional, Any, cast, List as PyList, BinaryIO
 from abc import ABCMeta, ABC, abstractmethod
 from pymerkles.tree import Node, Root, RootNode, zero_node, merkle_hash
 from itertools import zip_longest
@@ -245,18 +245,22 @@ def pack_ints_to_chunks(items: Iterable[int], items_per_chunk: int) -> PyList[No
             for chunk_elems in grouper(items, items_per_chunk, fillvalue=0)]
 
 
-def bits_to_byte(byte: Tuple[bool, bool, bool, bool, bool, bool, bool, bool]) -> int:
+def bits_to_byte_int(byte: Tuple[bool, bool, bool, bool, bool, bool, bool, bool]) -> int:
     return sum([byte[i] << i for i in range(0, 8)])
 
 
-def byte_to_bytes(b: int) -> bytes:
+def byte_int_to_byte(b: int) -> bytes:
     return b.to_bytes(length=1, byteorder='little')
 
 
 def pack_bits_to_chunks(items: Iterable[bool]) -> PyList[Node]:
-    return pack_bytes_to_chunks(map(bits_to_byte, grouper(items, 8, fillvalue=0)))
+    return pack_byte_ints_to_chunks(map(bits_to_byte_int, grouper(items, 8, fillvalue=0)))
 
 
-def pack_bytes_to_chunks(items: Iterable[int]) -> PyList[Node]:
-    return [RootNode(Root(b"".join(map(byte_to_bytes, chunk_bytes))))
-            for chunk_bytes in grouper(items, 32, fillvalue=b"\x00")]
+def pack_byte_ints_to_chunks(items: Iterable[int]) -> PyList[Node]:
+    return [RootNode(Root(b"".join(map(byte_int_to_byte, chunk_bytes))))
+            for chunk_bytes in grouper(items, 32, fillvalue=0)]
+
+
+def pack_bytes_to_chunks(bytez: bytes) -> PyList[Node]:
+    return [RootNode(Root(bytez[i:min(i+32, len(bytez))])) for i in range(0, len(bytez), 32)]

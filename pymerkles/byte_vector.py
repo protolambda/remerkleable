@@ -9,13 +9,13 @@ class ByteVectorType(FixedByteLengthTypeHelper, TypeDef):
     @classmethod
     def view_from_backing(mcs, node: Node, hook: Optional["ViewHook"] = None) -> "View":
         depth = mcs.tree_depth()
+        byte_len = mcs.type_byte_length()
         if depth == 0:
             if isinstance(node, RootNode):
-                return mcs.decode_bytes(node.root)
+                return mcs.decode_bytes(node.root[:byte_len])
             else:
                 raise Exception("cannot create <= 32 byte view from composite node!")
         else:
-            byte_len = mcs.type_byte_length()
             chunk_count = (byte_len + 31) // 32
             chunks = [node.getter(to_gindex(i, depth)) for i in range(chunk_count)]
             bytez = b"".join(map(must_leaf, chunks))[:byte_len]
