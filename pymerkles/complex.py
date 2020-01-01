@@ -384,12 +384,12 @@ class List(SubtreeView, MutSeqLike, metaclass=ListType):
         self.set_backing(next_backing)
 
     def get(self, i: int) -> View:
-        if i < 0 or i > self.length():
+        if i < 0 or i >= self.length():
             raise IndexError
         return super().get(i)
 
     def set(self, i: int, v: View) -> None:
-        if i < 0 or i > self.length():
+        if i < 0 or i >= self.length():
             raise IndexError
         super().set(i, v)
 
@@ -594,12 +594,12 @@ class Vector(SubtreeView, MutSeqLike, metaclass=VectorType):
         return super().__new__(cls, backing=backing, hook=hook, **kwargs)
 
     def get(self, i: int) -> View:
-        if i < 0 or i > self.__class__.vector_length():
+        if i < 0 or i >= self.__class__.vector_length():
             raise IndexError
         return super().get(i)
 
     def set(self, i: int, v: View) -> None:
-        if i < 0 or i > self.__class__.vector_length():
+        if i < 0 or i >= self.__class__.vector_length():
             raise IndexError
         super().set(i, v)
 

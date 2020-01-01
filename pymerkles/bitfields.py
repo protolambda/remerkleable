@@ -1,9 +1,10 @@
-from typing import cast, BinaryIO, List as PyList
+from typing import cast, BinaryIO, List as PyList, Any
 from types import GeneratorType
 from collections.abc import Sequence as ColSequence
 from abc import ABC, abstractmethod
 import io
-from pymerkles.core import TypeDef, BackedView, FixedByteLengthTypeHelper, FixedByteLengthViewHelper, pack_bits_to_chunks
+from pymerkles.core import TypeDef, BackedView, FixedByteLengthTypeHelper, FixedByteLengthViewHelper, \
+    pack_bits_to_chunks, View
 from pymerkles.tree import Node, Commit, zero_node, Gindex, to_gindex, Link, RootNode, NavigationError,\
     Root, subtree_fill_to_contents, get_depth
 from pymerkles.basic import boolean, uint256
@@ -113,6 +114,10 @@ class BitListType(BitsType):
     def __getitem__(self, limit):
 
         class SpecialBitListType(BitListType):
+            @classmethod
+            def coerce_view(mcs, v: Any) -> View:
+                return SpecialBitListView(*v)
+
             @classmethod
             def limit(mcs) -> int:
                 return limit
@@ -245,14 +250,20 @@ class BitList(BitsView, metaclass=BitListType):
         self.set_backing(next_backing)
 
     def get(self, i: int) -> boolean:
-        if i > self.length():
+        if i < 0 or i >= self.length():
             raise IndexError
-        return super().get(i)
+        try:
+            return super().get(i)
+        except NavigationError:
+            raise IndexError
 
     def set(self, i: int, v: boolean) -> None:
-        if i > self.length():
+        if i < 0 or i >= self.length():
             raise IndexError
-        super().set(i, v)
+        try:
+            super().set(i, v)
+        except NavigationError:
+            raise IndexError
 
     def __repr__(self):
         try:
@@ -296,6 +307,10 @@ class BitVectorType(FixedByteLengthTypeHelper, BitsType):
     def __getitem__(self, length):
 
         class SpecialBitVectorType(BitVectorType):
+            @classmethod
+            def coerce_view(mcs, v: Any) -> View:
+                return SpecialBitVectorView(*v)
+
             @classmethod
             def vector_length(mcs) -> int:
                 return length
@@ -354,12 +369,12 @@ class BitVector(FixedByteLengthViewHelper, BitsView, metaclass=BitVectorType):
         return self.__class__.vector_length()
 
     def get(self, i: int) -> boolean:
-        if i > self.length():
+        if i < 0 or i >= self.length():
             raise IndexError
         return super().get(i)
 
     def set(self, i: int, v: boolean) -> None:
-        if i > self.length():
+        if i < 0 or i >= self.length():
             raise IndexError
         super().set(i, v)
 
