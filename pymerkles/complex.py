@@ -1,4 +1,4 @@
-from typing import Sequence, NamedTuple, cast, List as PyList, Dict, Any, BinaryIO, Optional
+from typing import Sequence, NamedTuple, cast, List as PyList, Dict, Any, BinaryIO, Optional, TypeVar, Type
 from types import GeneratorType
 from collections.abc import Sequence as ColSequence
 from itertools import chain
@@ -9,6 +9,8 @@ from pymerkles.basic import uint256, uint8, uint32
 from pymerkles.tree import Node, subtree_fill_to_length, subtree_fill_to_contents,\
     zero_node, Gindex, Commit, to_gindex, NavigationError, get_depth
 from pymerkles.subtree import SubtreeTypeDef, SubtreeView
+
+V = TypeVar('V', bound=View)
 
 
 def decode_offset(stream: BinaryIO) -> uint32:
@@ -197,7 +199,7 @@ class ListType(MonoSubtreeTypeDef):
         return bytes_per_elem * mcs.limit()
 
     @classmethod
-    def decode_bytes(mcs, bytez: bytes) -> View:
+    def decode_bytes(mcs: Type[Type[V]], bytez: bytes) -> V:
         stream = io.BytesIO()
         stream.write(bytez)
         stream.seek(0)
@@ -205,7 +207,7 @@ class ListType(MonoSubtreeTypeDef):
 
     @classmethod
     @abstractmethod
-    def deserialize(mcs, stream: BinaryIO, scope: int) -> View:
+    def deserialize(mcs: Type[Type[V]], stream: BinaryIO, scope: int) -> V:
         raise NotImplementedError  # override in parametrized list type
 
     def __repr__(self):
@@ -225,7 +227,7 @@ class ListType(MonoSubtreeTypeDef):
         class SpecialListType(ListType):
 
             @classmethod
-            def coerce_view(mcs, v: Any) -> View:
+            def coerce_view(mcs: Type[Type[V]], v: Any) -> V:
                 return SpecialListView(*v)
 
             @classmethod
@@ -245,7 +247,7 @@ class ListType(MonoSubtreeTypeDef):
                 return limit
 
             @classmethod
-            def deserialize(mcs, stream: BinaryIO, scope: int) -> List:
+            def deserialize(mcs: Type[Type[V]], stream: BinaryIO, scope: int) -> V:
                 return SpecialListView(*mcs.deserialize_elements(stream, scope))
 
         class SpecialListView(List, metaclass=SpecialListType):
@@ -486,7 +488,7 @@ class VectorType(MonoSubtreeTypeDef):
         return bytes_per_elem * mcs.vector_length()
 
     @classmethod
-    def decode_bytes(mcs, bytez: bytes) -> View:
+    def decode_bytes(mcs: Type[Type[V]], bytez: bytes) -> V:
         stream = io.BytesIO()
         stream.write(bytez)
         stream.seek(0)
@@ -494,7 +496,7 @@ class VectorType(MonoSubtreeTypeDef):
 
     @classmethod
     @abstractmethod
-    def deserialize(mcs, stream: BinaryIO, scope: int) -> View:
+    def deserialize(mcs: Type[Type[V]], stream: BinaryIO, scope: int) -> V:
         raise NotImplementedError  # override in parametrized vector type
 
     def __repr__(self):
@@ -514,7 +516,7 @@ class VectorType(MonoSubtreeTypeDef):
 
         class SpecialVectorType(VectorType):
             @classmethod
-            def coerce_view(mcs, v: Any) -> View:
+            def coerce_view(mcs: Type[Type[V]], v: Any) -> V:
                 return SpecialVectorView(*v)
 
             @classmethod
@@ -534,14 +536,14 @@ class VectorType(MonoSubtreeTypeDef):
                 return length
 
             @classmethod
-            def deserialize(mcs, stream: BinaryIO, scope: int) -> Vector:
+            def deserialize(mcs: Type[Type[V]], stream: BinaryIO, scope: int) -> V:
                 return SpecialVectorView(*mcs.deserialize_elements(stream, scope))
 
         # for fixed-size vectors, pre-compute the size.
         if element_view_cls.is_fixed_byte_length():
             byte_length = element_view_cls.type_byte_length() * length
 
-            class FixedSpecialVectorType(SpecialVectorType):
+            class FixedSpecialVectorType(SpecialVectorType, type):
                 @classmethod
                 def type_byte_length(mcs) -> int:
                     return byte_length
@@ -717,7 +719,6 @@ class Container(SubtreeView, metaclass=ContainerType):
         else:
             raise Exception("dynamic length container does not have a fixed byte length")
 
-
     @classmethod
     def min_byte_length(cls) -> int:
         total = 0
@@ -784,7 +785,7 @@ class Container(SubtreeView, metaclass=ContainerType):
             if key in keys:
                 super().set(keys.index(key), value)
             else:
-                super().__setattr__(key, value)
+                raise AttributeError(f"unknown field {key}")
 
     def __repr__(self):
         fields = self.fields()
@@ -800,14 +801,14 @@ class Container(SubtreeView, metaclass=ContainerType):
             for fkey, ftype in zip(fields.keys, fields.types)) + '\n'
 
     @classmethod
-    def decode_bytes(cls, bytez: bytes) -> View:
+    def decode_bytes(cls: Type[V], bytez: bytes) -> V:
         stream = io.BytesIO()
         stream.write(bytez)
         stream.seek(0)
         return cls.deserialize(stream, len(bytez))
 
     @classmethod
-    def deserialize(cls, stream: BinaryIO, scope: int) -> View:
+    def deserialize(cls: Type[V], stream: BinaryIO, scope: int) -> V:
         fields = cls.fields()
         field_values: Dict[str, View]
         if cls.is_fixed_byte_length():

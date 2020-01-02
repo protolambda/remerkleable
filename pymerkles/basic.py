@@ -1,11 +1,13 @@
-from typing import Any
+from typing import Any, TypeVar, Type
 from abc import abstractmethod
 from pymerkles.core import BasicTypeHelperDef, BasicView, View
+
+V = TypeVar('V', bound=View)
 
 
 class BoolType(BasicTypeHelperDef):
     @classmethod
-    def coerce_view(mcs, v: Any) -> View:
+    def coerce_view(mcs: Type[Type[V]], v: Any) -> V:
         return boolean(v)
 
     @classmethod
@@ -13,7 +15,7 @@ class BoolType(BasicTypeHelperDef):
         return 1
 
     @classmethod
-    def decode_bytes(mcs, bytez: bytes) -> View:
+    def decode_bytes(mcs: Type[Type[V]], bytez: bytes) -> V:
         return boolean(bytez != b"\x00")
 
     def __repr__(self):
@@ -45,8 +47,24 @@ class UintTypeBase(BasicTypeHelperDef):
 
 
 class uint(int, BasicView, metaclass=UintTypeBase):
+    def __new__(cls, value: int):
+        if value < 0:
+            raise ValueError(f"unsigned type {cls} must not be negative")
+        byte_len = cls.__class__.type_byte_length()
+        if value.bit_length() > (byte_len << 3):
+            raise ValueError(f"value out of bounds for {cls}")
+        return super().__new__(cls, value)
+
+    def __add__(self, other):
+        return self.__class__(super().__add__(self.__class__.coerce_view(other)))
+
+    def __sub__(self, other):
+        return self.__class__(super().__sub__(self.__class__.coerce_view(other)))
+
     @classmethod
-    def coerce_view(cls, v: Any) -> View:
+    def coerce_view(cls: Type[V], v: Any) -> V:
+        if isinstance(v, uint) and cls.type_byte_length() != v.__class__.type_byte_length():
+            raise ValueError("value must have equal byte length to coerce it")
         if isinstance(v, bytes):
             return cls.decode_bytes(v)
         return cls(v)
@@ -61,7 +79,7 @@ class Uint8Type(UintTypeBase):
         return 1
 
     @classmethod
-    def decode_bytes(mcs, bytez: bytes) -> View:
+    def decode_bytes(mcs: Type[Type[V]], bytez: bytes) -> V:
         return uint8(int.from_bytes(bytez, byteorder='little'))
 
     def __repr__(self):
@@ -78,7 +96,7 @@ class Uint16Type(UintTypeBase):
         return 2
 
     @classmethod
-    def decode_bytes(mcs, bytez: bytes) -> View:
+    def decode_bytes(mcs: Type[Type[V]], bytez: bytes) -> V:
         return uint16(int.from_bytes(bytez, byteorder='little'))
 
     def __repr__(self):
@@ -95,7 +113,7 @@ class Uint32Type(UintTypeBase):
         return 4
 
     @classmethod
-    def decode_bytes(mcs, bytez: bytes) -> View:
+    def decode_bytes(mcs: Type[Type[V]], bytez: bytes) -> V:
         return uint32(int.from_bytes(bytez, byteorder='little'))
 
     def __repr__(self):
@@ -112,7 +130,7 @@ class Uint64Type(UintTypeBase):
         return 8
 
     @classmethod
-    def decode_bytes(mcs, bytez: bytes) -> View:
+    def decode_bytes(mcs: Type[Type[V]], bytez: bytes) -> V:
         return uint64(int.from_bytes(bytez, byteorder='little'))
     
     def __repr__(self):
@@ -129,7 +147,7 @@ class Uint128Type(UintTypeBase):
         return 16
 
     @classmethod
-    def decode_bytes(mcs, bytez: bytes) -> View:
+    def decode_bytes(mcs: Type[Type[V]], bytez: bytes) -> V:
         return uint128(int.from_bytes(bytez, byteorder='little'))
 
     def __repr__(self):
@@ -146,7 +164,7 @@ class Uint256Type(UintTypeBase):
         return 32
 
     @classmethod
-    def decode_bytes(mcs, bytez: bytes) -> View:
+    def decode_bytes(mcs: Type[Type[V]], bytez: bytes) -> V:
         return uint256(int.from_bytes(bytez, byteorder='little'))
 
     def __repr__(self):

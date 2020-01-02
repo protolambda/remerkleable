@@ -1,14 +1,16 @@
 from pymerkles.tree import Node, RootNode, Root, subtree_fill_to_contents, get_depth, to_gindex, must_leaf, \
     subtree_fill_to_length
 from pymerkles.core import View, ViewHook, TypeDef, zero_node, FixedByteLengthTypeHelper, FixedByteLengthViewHelper, pack_bytes_to_chunks
-from typing import Optional, Any
+from typing import Optional, Any, TypeVar, Type
 from types import GeneratorType
+
+V = TypeVar('V', bound=View)
 
 
 class ByteVectorType(FixedByteLengthTypeHelper, TypeDef):
 
     @classmethod
-    def view_from_backing(mcs, node: Node, hook: Optional["ViewHook"] = None) -> View:
+    def view_from_backing(mcs: Type[Type[V]], node: Node, hook: Optional[ViewHook[V]] = None) -> V:
         depth = mcs.tree_depth()
         byte_len = mcs.type_byte_length()
         if depth == 0:
@@ -40,11 +42,11 @@ class ByteVectorType(FixedByteLengthTypeHelper, TypeDef):
                 return tree_depth
 
             @classmethod
-            def decode_bytes(mcs, bytez: bytes) -> "View":
+            def decode_bytes(mcs: Type[Type[V]], bytez: bytes) -> V:
                 return SpecialByteVectorView(bytez)
 
             @classmethod
-            def coerce_view(mcs, v: Any) -> View:
+            def coerce_view(mcs: Type[Type[V]], v: Any) -> V:
                 return SpecialByteVectorView(v)
 
             @classmethod

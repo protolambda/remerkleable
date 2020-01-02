@@ -1,6 +1,6 @@
 from pymerkles.complex import Container, List, Vector
 from pymerkles.basic import uint64, boolean
-from pymerkles.bytes_vector import ByteVector
+from pymerkles.byte_vector import ByteVector
 from pymerkles.tree import merkle_hash
 
 Bytes32 = ByteVector[32]

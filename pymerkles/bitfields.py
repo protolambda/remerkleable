@@ -1,4 +1,4 @@
-from typing import cast, BinaryIO, List as PyList, Any
+from typing import cast, BinaryIO, List as PyList, Any, TypeVar, Type
 from types import GeneratorType
 from collections.abc import Sequence as ColSequence
 from abc import ABC, abstractmethod
@@ -8,6 +8,8 @@ from pymerkles.core import TypeDef, BackedView, FixedByteLengthTypeHelper, Fixed
 from pymerkles.tree import Node, Commit, zero_node, Gindex, to_gindex, Link, RootNode, NavigationError,\
     Root, subtree_fill_to_contents, get_depth
 from pymerkles.basic import boolean, uint256
+
+V = TypeVar('V', bound=View)
 
 
 class BitsType(TypeDef):
@@ -115,7 +117,7 @@ class BitlistType(BitsType):
 
         class SpecialBitlistType(BitlistType):
             @classmethod
-            def coerce_view(mcs, v: Any) -> View:
+            def coerce_view(mcs: Type[Type[V]], v: Any) -> V:
                 return SpecialBitlistView(*v)
 
             @classmethod
@@ -254,14 +256,14 @@ class Bitlist(BitsView, metaclass=BitlistType):
         raise NotImplementedError  # TODO write chunks, end with delimiting bit
 
     @classmethod
-    def decode_bytes(cls, bytez: bytes) -> "Bitlist":
+    def decode_bytes(cls: Type[V], bytez: bytes) -> V:
         stream = io.BytesIO()
         stream.write(bytez)
         stream.seek(0)
         return cls.deserialize(stream, len(bytez))
 
     @classmethod
-    def deserialize(cls, stream: BinaryIO, scope: int) -> "Bitlist":
+    def deserialize(cls: Type[V], stream: BinaryIO, scope: int) -> V:
         if scope < 1:
             raise Exception("cannot have empty scope for bitlist, need at least a delimiting bit")
         if scope > cls.max_byte_length():
@@ -310,7 +312,7 @@ class BitvectorType(FixedByteLengthTypeHelper, BitsType):
 
         class SpecialBitvectorType(BitvectorType):
             @classmethod
-            def coerce_view(mcs, v: Any) -> View:
+            def coerce_view(mcs: Type[Type[V]], v: Any) -> V:
                 return SpecialBitvectorView(*v)
 
             @classmethod
@@ -363,16 +365,16 @@ class Bitvector(FixedByteLengthViewHelper, BitsView, metaclass=BitvectorType):
         return f"Bitvector[{length}]({bitstr})"
 
     @classmethod
-    def decode_bytes(mcs, bytez: bytes) -> View:
+    def decode_bytes(cls: Type[V], bytez: bytes) -> V:
         stream = io.BytesIO()
         stream.write(bytez)
         stream.seek(0)
-        return mcs.deserialize(stream, len(bytez))
+        return cls.deserialize(stream, len(bytez))
 
     @classmethod
-    def deserialize(mcs, stream: BinaryIO, scope: int) -> View:
-        if scope != mcs.type_byte_length():
-            raise Exception(f"scope is invalid: {scope}, bitvector byte length is: {mcs.type_byte_length()}")
+    def deserialize(cls: Type[V], stream: BinaryIO, scope: int) -> V:
+        if scope != cls.type_byte_length():
+            raise Exception(f"scope is invalid: {scope}, bitvector byte length is: {cls.type_byte_length()}")
         chunks: PyList[Node] = []
         bytelen = scope - 1  # excluding the last byte
         while scope > 32:
@@ -382,12 +384,12 @@ class Bitvector(FixedByteLengthViewHelper, BitsView, metaclass=BitvectorType):
         last_chunk_part = stream.read(scope)
         last_byte = int(last_chunk_part[scope-1])
         bitlen = bytelen * 8 + last_byte.bit_length()
-        if bitlen > mcs.vector_length():
-            raise Exception(f"bitvector too long: {bitlen}, last byte has bits over bit length ({mcs.vector_length()})")
+        if bitlen > cls.vector_length():
+            raise Exception(f"bitvector too long: {bitlen}, last byte has bits over bit length ({cls.vector_length()})")
         last_chunk = last_chunk_part + (b"\x00" * (32 - len(last_chunk_part)))
         chunks.append(RootNode(Root(last_chunk)))
-        backing = subtree_fill_to_contents(chunks, mcs.tree_depth())
-        return cast(Bitvector, mcs.view_from_backing(backing))
+        backing = subtree_fill_to_contents(chunks, cls.tree_depth())
+        return cast(Bitvector, cls.view_from_backing(backing))
 
 
     def encode_bytes(self) -> bytes:

@@ -1,9 +1,9 @@
 from pymerkles.core import View, TypeDef, BasicView
-from .ssz_typing import (
-    bit, boolean, Container, List, Vector,
-    byte, uint8, uint16, uint32, uint64, uint128, uint256,
-    Bytes32, Bytes48
-)
+from pymerkles.complex import Container, Vector, List
+from pymerkles.basic import boolean, bit, uint, byte, uint8, uint16, uint32, uint64, uint128, uint256
+from pymerkles.bitfields import Bitvector, Bitlist
+from pymerkles.byte_vector import ByteVector, Bytes1, Bytes4, Bytes8, Bytes32, Bytes48, Bytes96
+from pymerkles.core import BasicView, View, TypeDef
 
 
 def expect_value_error(fn, msg):
@@ -25,8 +25,8 @@ def test_subclasses():
     assert isinstance(boolean, TypeDef)
 
     for c in [Container, List, Vector, Bytes32]:
-        assert not issubclass(c, View)
-        assert not isinstance(c, TypeDef)
+        assert issubclass(c, View)
+        assert isinstance(c, TypeDef)
 
 
 def test_basic_instances():
@@ -58,7 +58,7 @@ def test_basic_value_bounds():
         # this should work
         assert k(v - 1) == v - 1
         # but we do not allow overflows
-        expect_value_error(lambda: k(v), "no overflows allowed")
+        expect_value_error(lambda: k(v), f"no overflows allowed: type: {k}, value: {v}")
 
     for k, _ in max.items():
         # this should work
@@ -79,32 +79,30 @@ def test_container():
     assert issubclass(Foo, Container)
     assert issubclass(Foo, View)
 
-    assert Foo.is_fixed_size()
+    assert Foo.is_fixed_byte_length()
     x = Foo(a=uint8(123), b=uint32(45))
     assert x.a == 123
     assert x.b == 45
     assert isinstance(x.a, uint8)
     assert isinstance(x.b, uint32)
-    assert x.__class__.is_fixed_size()
+    assert x.__class__.is_fixed_byte_length()
 
     class Bar(Container):
         a: uint8
         b: List[uint8, 1024]
 
-    assert not Bar.is_fixed_size()
+    assert not Bar.is_fixed_byte_length()
 
     y = Bar(a=123, b=List[uint8, 1024](uint8(1), uint8(2)))
     assert y.a == 123
     assert isinstance(y.a, uint8)
     assert len(y.b) == 2
     assert isinstance(y.a, uint8)
-    # noinspection PyTypeHints
-    assert isinstance(y.b, List[uint8, 1024])
-    assert not y.__class__.is_fixed_size()
+    assert not y.__class__.is_fixed_byte_length()
     assert y.b[0] == 1
     v: List = y.b
-    assert v.__class__.elem_type == uint8
-    assert v.__class__.length == 1024
+    assert v.__class__.element_cls() == uint8
+    assert v.__class__.limit() == 1024
 
     y.a = 42
     try:
@@ -141,16 +139,12 @@ def test_list():
     assert isinstance(typ(1, 2, 3, 4, 5)[4], uint64)  # coercion
     assert isinstance(typ(i for i in range(10))[9], uint64)  # coercion in generator
 
-    v = typ(uint64(0))
+    v = typ(uint64(2), uint64(1))
     v[0] = uint64(123)
     assert v[0] == 123
     assert isinstance(v[0], uint64)
 
     assert isinstance(v, List)
-    # noinspection PyTypeHints
-    assert isinstance(v, List[uint64, 128])
-    # noinspection PyTypeHints
-    assert isinstance(v, typ)
     assert isinstance(v, View)
 
     assert len(typ([i for i in range(10)])) == 10  # cast py list to SSZ list
@@ -191,10 +185,6 @@ def test_list():
 
 
 def test_bytesn_subclass():
-    assert isinstance(Vector[byte, 32](b'\xab' * 32), Bytes32)
-    assert not isinstance(Vector[byte, 32](b'\xab' * 32), Bytes48)
-    assert issubclass(Vector[byte, 32](b'\xab' * 32).__class__, Bytes32)
-    assert issubclass(Vector[byte, 32], Bytes32)
 
     class Root(Bytes32):
         pass
