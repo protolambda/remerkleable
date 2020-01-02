@@ -78,7 +78,8 @@ class MonoSubtreeTypeDef(SubtreeTypeDef):
             count = first_offset // OFFSET_BYTE_LENGTH
             if not mcs.is_valid_count(count):
                 raise Exception(f"count {count} is invalid")
-            offsets = [first_offset] + [decode_offset(stream) for _ in range(count)] + [uint32(scope)]
+            # count - 1: we already have the first offset
+            offsets = [first_offset] + [decode_offset(stream) for _ in range(count - 1)] + [uint32(scope)]
             elem_min, elem_max = elem_cls.min_byte_length(), elem_cls.max_byte_length()
             elems = []
             for i in range(count):
