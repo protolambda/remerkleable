@@ -197,7 +197,7 @@ class ListType(MonoSubtreeTypeDef):
         return bytes_per_elem * mcs.limit()
 
     @classmethod
-    def decode_bytes(mcs, bytez: bytes) -> "List":
+    def decode_bytes(mcs, bytez: bytes) -> View:
         stream = io.BytesIO()
         stream.write(bytez)
         stream.seek(0)
@@ -205,7 +205,7 @@ class ListType(MonoSubtreeTypeDef):
 
     @classmethod
     @abstractmethod
-    def deserialize(mcs, stream: BinaryIO, scope: int) -> "List":
+    def deserialize(mcs, stream: BinaryIO, scope: int) -> View:
         raise NotImplementedError  # override in parametrized list type
 
     def __repr__(self):
@@ -486,7 +486,7 @@ class VectorType(MonoSubtreeTypeDef):
         return bytes_per_elem * mcs.vector_length()
 
     @classmethod
-    def decode_bytes(mcs, bytez: bytes) -> "Vector":
+    def decode_bytes(mcs, bytez: bytes) -> View:
         stream = io.BytesIO()
         stream.write(bytez)
         stream.seek(0)
@@ -494,7 +494,7 @@ class VectorType(MonoSubtreeTypeDef):
 
     @classmethod
     @abstractmethod
-    def deserialize(mcs, stream: BinaryIO, scope: int) -> "Vector":
+    def deserialize(mcs, stream: BinaryIO, scope: int) -> View:
         raise NotImplementedError  # override in parametrized vector type
 
     def __repr__(self):
@@ -800,14 +800,14 @@ class Container(SubtreeView, metaclass=ContainerType):
             for fkey, ftype in zip(fields.keys, fields.types)) + '\n'
 
     @classmethod
-    def decode_bytes(cls, bytez: bytes) -> "Container":
+    def decode_bytes(cls, bytez: bytes) -> View:
         stream = io.BytesIO()
         stream.write(bytez)
         stream.seek(0)
         return cls.deserialize(stream, len(bytez))
 
     @classmethod
-    def deserialize(cls, stream: BinaryIO, scope: int) -> "Container":
+    def deserialize(cls, stream: BinaryIO, scope: int) -> View:
         fields = cls.fields()
         field_values: Dict[str, View]
         if cls.is_fixed_byte_length():

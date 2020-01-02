@@ -82,6 +82,9 @@ class FixedByteLengthTypeHelper(TypeDef):
         return mcs.decode_bytes(stream.read(n))
 
 
+# Some class-methods call the metaclass method, and are only strictly here to track dependencies,
+# as some view implementations only implement type-level methods as class-methods.
+# E.g. Container, which would not have access to its annotations (fields) from the metaclass.
 class View(ABC, object, metaclass=TypeDef):
     @classmethod
     def coerce_view(cls, v: "View") -> "View":
@@ -110,6 +113,14 @@ class View(ABC, object, metaclass=TypeDef):
     @abstractmethod
     def value_byte_length(self) -> int:
         raise NotImplementedError
+
+    @classmethod
+    def decode_bytes(cls, bytez: bytes) -> "View":
+        return cls.__class__.decode_bytes(bytez)
+
+    @classmethod
+    def deserialize(cls, stream: BinaryIO, scope: int) -> "View":
+        return cls.__class__.deserialize(stream, scope)
 
     def __bytes__(self):
         return self.encode_bytes()
@@ -143,7 +154,7 @@ class BackedView(View, metaclass=TypeDef):
     _backing: Node
 
     @classmethod
-    def view_from_backing(cls, node: Node, hook: Optional["ViewHook"]) -> "View":
+    def view_from_backing(cls, node: Node, hook: Optional["ViewHook"] = None) -> "View":
         return cls(backing=node, hook=hook)
 
     def __new__(cls, backing: Optional[Node] = None, hook: Optional["ViewHook"] = None, **kwargs):

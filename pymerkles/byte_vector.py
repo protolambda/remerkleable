@@ -8,7 +8,7 @@ from types import GeneratorType
 class ByteVectorType(FixedByteLengthTypeHelper, TypeDef):
 
     @classmethod
-    def view_from_backing(mcs, node: Node, hook: Optional["ViewHook"] = None) -> "View":
+    def view_from_backing(mcs, node: Node, hook: Optional["ViewHook"] = None) -> View:
         depth = mcs.tree_depth()
         byte_len = mcs.type_byte_length()
         if depth == 0:
