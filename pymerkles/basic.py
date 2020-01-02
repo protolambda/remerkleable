@@ -155,3 +155,10 @@ class Uint256Type(UintTypeBase):
 
 class uint256(uint, metaclass=Uint256Type):
     pass
+
+
+class bit(boolean):
+    pass
+
+class byte(uint8):
+    pass

@@ -199,6 +199,7 @@ class ListType(MonoSubtreeTypeDef):
     def decode_bytes(mcs, bytez: bytes) -> "List":
         stream = io.BytesIO()
         stream.write(bytez)
+        stream.seek(0)
         return mcs.deserialize(stream, len(bytez))
 
     @classmethod
@@ -487,6 +488,7 @@ class VectorType(MonoSubtreeTypeDef):
     def decode_bytes(mcs, bytez: bytes) -> "Vector":
         stream = io.BytesIO()
         stream.write(bytez)
+        stream.seek(0)
         return mcs.deserialize(stream, len(bytez))
 
     @classmethod
@@ -704,40 +706,34 @@ class Container(SubtreeView, metaclass=ContainerType):
         return Fields(keys=list(annot.keys()), types=[v for v in annot.values()])
 
     @classmethod
-    def is_fixed_byte_length(mcs) -> bool:
-        return all(f.is_fixed_byte_length() for f in mcs.fields().types)
+    def is_fixed_byte_length(cls) -> bool:
+        return all(f.is_fixed_byte_length() for f in cls.fields().types)
 
     @classmethod
-    def type_byte_length(mcs) -> int:
-        if mcs.is_fixed_byte_length():
-            return mcs.min_byte_length()
+    def type_byte_length(cls) -> int:
+        if cls.is_fixed_byte_length():
+            return cls.min_byte_length()
         else:
             raise Exception("dynamic length container does not have a fixed byte length")
 
 
     @classmethod
-    def min_byte_length(mcs) -> int:
+    def min_byte_length(cls) -> int:
         total = 0
-        for ftyp in mcs.fields().types:
+        for ftyp in cls.fields().types:
             if not ftyp.is_fixed_byte_length():
                 total += OFFSET_BYTE_LENGTH
             total += ftyp.min_byte_length()
         return total
 
     @classmethod
-    def max_byte_length(mcs) -> int:
+    def max_byte_length(cls) -> int:
         total = 0
-        for ftyp in mcs.fields().types:
+        for ftyp in cls.fields().types:
             if not ftyp.is_fixed_byte_length():
                 total += OFFSET_BYTE_LENGTH
             total += ftyp.max_byte_length()
         return total
-
-    @classmethod
-    def decode_bytes(mcs, bytez: bytes) -> "Container":
-        stream = io.BytesIO()
-        stream.write(bytez)
-        return mcs.deserialize(stream, len(bytez))
 
     @classmethod
     def is_packed(cls) -> bool:
@@ -801,6 +797,13 @@ class Container(SubtreeView, metaclass=ContainerType):
         return f"{self.__class__.__name__}(Container)\n" + '\n'.join(
             ('  ' + fkey + ': ' + repr(ftype) + ' = ' + get_field_val_repr(fkey))
             for fkey, ftype in zip(fields.keys, fields.types)) + '\n'
+
+    @classmethod
+    def decode_bytes(cls, bytez: bytes) -> "Container":
+        stream = io.BytesIO()
+        stream.write(bytez)
+        stream.seek(0)
+        return cls.deserialize(stream, len(bytez))
 
     @classmethod
     def deserialize(cls, stream: BinaryIO, scope: int) -> "Container":

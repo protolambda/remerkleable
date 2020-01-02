@@ -90,7 +90,7 @@ class BitsView(BackedView, ColSequence, ABC, metaclass=BitsType):
             self.set(k, v)
 
 
-class BitListType(BitsType):
+class BitlistType(BitsType):
     @classmethod
     def contents_depth(mcs) -> int:  # depth excluding the length mix-in
         return get_depth((mcs.limit() + 255) // 256)
@@ -109,23 +109,23 @@ class BitListType(BitsType):
         return Commit(zero_node(mcs.contents_depth()), zero_node(0))  # mix-in 0 as list length
 
     def __repr__(self):
-        return f"BitList[{self.limit()}]"
+        return f"Bitlist[{self.limit()}]"
 
     def __getitem__(self, limit):
 
-        class SpecialBitListType(BitListType):
+        class SpecialBitlistType(BitlistType):
             @classmethod
             def coerce_view(mcs, v: Any) -> View:
-                return SpecialBitListView(*v)
+                return SpecialBitlistView(*v)
 
             @classmethod
             def limit(mcs) -> int:
                 return limit
 
-        class SpecialBitListView(BitList, metaclass=SpecialBitListType):
+        class SpecialBitlistView(Bitlist, metaclass=SpecialBitlistType):
             pass
 
-        return SpecialBitListView
+        return SpecialBitlistView
 
     @classmethod
     def is_fixed_byte_length(mcs) -> bool:
@@ -141,16 +141,17 @@ class BitListType(BitsType):
         return (mcs.limit() + 7 + 1) // 8
 
     @classmethod
-    def decode_bytes(mcs, bytez: bytes) -> "BitList":
+    def decode_bytes(mcs, bytez: bytes) -> "Bitlist":
         stream = io.BytesIO()
         stream.write(bytez)
+        stream.seek(0)
         return mcs.deserialize(stream, len(bytez))
 
     @classmethod
-    def deserialize(mcs, stream: BinaryIO, scope: int) -> "BitList":
+    def deserialize(mcs, stream: BinaryIO, scope: int) -> "Bitlist":
         if scope < 1:
             raise Exception("cannot have empty scope for bitlist, need at least a delimiting bit")
-        if scope*8 > mcs.max_byte_length():
+        if scope > mcs.max_byte_length():
             raise Exception(f"scope is too large: {scope}, max bitlist byte length is: {mcs.max_byte_length()}")
         chunks: PyList[Node] = []
         bytelen = scope - 1  # excluding the last byte (which contains the delimiting bit)
@@ -171,10 +172,10 @@ class BitListType(BitsType):
             raise Exception(f"bitlist too long: {bitlen}, delimiting bit is over limit ({mcs.limit()})")
         contents = subtree_fill_to_contents(chunks, mcs.contents_depth())
         backing = Commit(contents, uint256(bitlen).get_backing())
-        return cast(BitList, mcs.view_from_backing(backing))
+        return cast(Bitlist, mcs.view_from_backing(backing))
 
 
-class BitList(BitsView, metaclass=BitListType):
+class Bitlist(BitsView, metaclass=BitlistType):
     def __new__(cls, *args, **kwargs):
         vals = list(args)
         if len(vals) > 0:
@@ -274,7 +275,7 @@ class BitList(BitsView, metaclass=BitListType):
             bitstr = ''.join('1' if self.get(i) else '0' for i in range(length))
         except NavigationError:
             bitstr = " *partial bits* "
-        return f"BitList[{self.__class__.limit()}]({length} bits: {bitstr})"
+        return f"Bitlist[{self.__class__.limit()}]({length} bits: {bitstr})"
 
     def value_byte_length(self) -> int:
         # bit count in bytes rounded up + delimiting bit
@@ -287,7 +288,7 @@ class BitList(BitsView, metaclass=BitListType):
         raise NotImplementedError  # TODO write chunks, end with delimiting bit
 
 
-class BitVectorType(FixedByteLengthTypeHelper, BitsType):
+class BitvectorType(FixedByteLengthTypeHelper, BitsType):
     @classmethod
     def tree_depth(mcs) -> int:
         return get_depth((mcs.vector_length() + 255) // 256)
@@ -302,37 +303,38 @@ class BitVectorType(FixedByteLengthTypeHelper, BitsType):
         return zero_node(mcs.tree_depth())
 
     def __repr__(self):
-        return f"BitVector[{self.vector_length()}]"
+        return f"Bitvector[{self.vector_length()}]"
 
     def __getitem__(self, length):
 
-        class SpecialBitVectorType(BitVectorType):
+        class SpecialBitvectorType(BitvectorType):
             @classmethod
             def coerce_view(mcs, v: Any) -> View:
-                return SpecialBitVectorView(*v)
+                return SpecialBitvectorView(*v)
 
             @classmethod
             def vector_length(mcs) -> int:
                 return length
 
-        class SpecialBitVectorView(BitVector, metaclass=SpecialBitVectorType):
+        class SpecialBitvectorView(Bitvector, metaclass=SpecialBitvectorType):
             pass
 
-        return SpecialBitVectorView
+        return SpecialBitvectorView
 
     @classmethod
     def type_byte_length(mcs) -> int:
         return (mcs.vector_length() + 7) // 8
 
     @classmethod
-    def decode_bytes(mcs, bytez: bytes) -> "BitVector":
+    def decode_bytes(mcs, bytez: bytes) -> "Bitvector":
         stream = io.BytesIO()
         stream.write(bytez)
+        stream.seek(0)
         return mcs.deserialize(stream, len(bytez))
 
     @classmethod
-    def deserialize(mcs, stream: BinaryIO, scope: int) -> "BitVector":
-        if scope*8 != mcs.max_byte_length():
+    def deserialize(mcs, stream: BinaryIO, scope: int) -> "Bitvector":
+        if scope != mcs.type_byte_length():
             raise Exception(f"scope is invalid: {scope}, bitvector byte length is: {mcs.type_byte_length()}")
         chunks: PyList[Node] = []
         bytelen = scope - 1  # excluding the last byte
@@ -348,10 +350,10 @@ class BitVectorType(FixedByteLengthTypeHelper, BitsType):
         last_chunk = last_chunk_part + (b"\x00" * (32 - len(last_chunk_part)))
         chunks.append(RootNode(Root(last_chunk)))
         backing = subtree_fill_to_contents(chunks, mcs.tree_depth())
-        return cast(BitVector, mcs.view_from_backing(backing))
+        return cast(Bitvector, mcs.view_from_backing(backing))
 
 
-class BitVector(FixedByteLengthViewHelper, BitsView, metaclass=BitVectorType):
+class Bitvector(FixedByteLengthViewHelper, BitsView, metaclass=BitvectorType):
     def __new__(cls, *args, **kwargs):
         vals = list(args)
         if len(vals) > 0:
@@ -384,7 +386,7 @@ class BitVector(FixedByteLengthViewHelper, BitsView, metaclass=BitVectorType):
             bitstr = ''.join('1' if self.get(i) else '0' for i in range(length))
         except NavigationError:
             bitstr = " *partial bits* "
-        return f"BitVector[{length}]({bitstr})"
+        return f"Bitvector[{length}]({bitstr})"
 
     def encode_bytes(self) -> bytes:
         raise NotImplementedError  # TODO concat chunks, end at length

@@ -100,3 +100,13 @@ class ByteVector(bytes, FixedByteLengthViewHelper, View, metaclass=ByteVectorTyp
 
     def encode_bytes(self) -> bytes:
         return self
+
+
+# Define common special Byte vector view types, these are bytes-like:
+# raw representation instead of backed by a binary tree. Inheriting Python "bytes"
+Bytes1 = ByteVector[1]
+Bytes4 = ByteVector[4]
+Bytes8 = ByteVector[8]
+Bytes32 = ByteVector[32]
+Bytes48 = ByteVector[48]
+Bytes96 = ByteVector[96]
