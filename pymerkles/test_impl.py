@@ -132,13 +132,13 @@ test_data = [
      ),
     ("uint32 list", List[uint32, 128], List[uint32, 128](uint32(0xaabb), uint32(0xc0ad), uint32(0xeeff)), "bbaa0000adc00000ffee0000",
      # max length: 128 * 4 = 512 bytes = 16 chunks
-     h(merge(chunk("bbaa0000adc00000ffee0000"), zero_hashes[0:4]), chunk("03000000"))
+     h(merge(chunk("bbaa0000adc00000ffee0000"), zero_hashes[0:4]), chunk("03"))
      ),
     ("uint256 list", List[uint256, 32], List[uint256, 32](uint256(0xaabb), uint256(0xc0ad), uint256(0xeeff)),
      "bbaa000000000000000000000000000000000000000000000000000000000000"
      "adc0000000000000000000000000000000000000000000000000000000000000"
      "ffee000000000000000000000000000000000000000000000000000000000000",
-     h(merge(h(h(chunk("bbaa"), chunk("adc0")), h(chunk("ffee"), chunk(""))), zero_hashes[2:5]), chunk("03000000"))
+     h(merge(h(h(chunk("bbaa"), chunk("adc0")), h(chunk("ffee"), chunk(""))), zero_hashes[2:5]), chunk("03"))
      ),
     ("uint256 list long", List[uint256, 128], List[uint256, 128](i for i in range(1, 20)),
      "".join([i.to_bytes(length=32, byteorder='little').hex() for i in range(1, 20)]),
@@ -162,7 +162,7 @@ test_data = [
                  zero_hashes[3]
              )
          ),
-         zero_hashes[5:7]), chunk("13000000"))  # 128 chunks = 7 deep
+         zero_hashes[5:7]), chunk("13"))  # 128 chunks = 7 deep
      ),
     ("fixedTestStruct", FixedTestStruct, FixedTestStruct(A=0xab, B=0xaabbccdd00112233, C=0x12345678), "ab33221100ddccbbaa78563412",
      h(h(chunk("ab"), chunk("33221100ddccbbaa")), h(chunk("78563412"), chunk("")))),
@@ -180,7 +180,7 @@ test_data = [
                      chunk("010002000300"),
                      zero_hashes[0:6]
                  ),
-                 chunk("03000000")  # length mix in
+                 chunk("03")  # length mix in
              )
          ),
          h(chunk("ff"), chunk(""))
@@ -258,7 +258,21 @@ test_data = [
 
 
 @pytest.mark.parametrize("name, typ, value, serialized, root", test_data)
-def test_serialize(name: str, typ: TypeDef, value: View, serialized: str, root: str):
+def test_type_bounds(name: str, typ: TypeDef, value: View, serialized: str, root: str):
+    byte_len = len(bytes.fromhex(serialized))
+    assert typ.min_byte_length() <= byte_len <= typ.max_byte_length()
+    if typ.is_fixed_byte_length():
+        assert byte_len == typ.type_byte_length()
+
+
+@pytest.mark.parametrize("name, typ, value, serialized, root", test_data)
+def test_value_byte_length(name: str, typ: TypeDef, value: View, serialized: str, root: str):
+    assert value.value_byte_length() == len(bytes.fromhex(serialized))
+
+
+@pytest.mark.parametrize("name, typ, value, serialized, root", test_data)
+def test_subclass(name: str, typ: TypeDef, value: View, serialized: str, root: str):
+    assert typ == value.__class__
     assert issubclass(typ, value.__class__)
     assert issubclass(value.__class__, typ)
 
