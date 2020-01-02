@@ -232,7 +232,7 @@ def subtree_fill_to_contents(nodes: List[Node], depth: int) -> Node:
         anchor = 1 << depth
         pivot = anchor >> 1
         if len(nodes) <= pivot:
-            return Commit(subtree_fill_to_contents(nodes, depth-1), zero_node(depth))
+            return Commit(subtree_fill_to_contents(nodes, depth-1), zero_node(depth-1))
         else:
             return Commit(
                 subtree_fill_to_contents(nodes[:pivot], depth-1),
