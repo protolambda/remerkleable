@@ -281,18 +281,18 @@ def test_serialize(name: str, typ: Type[View], value: View, serialized: str, roo
     value.serialize(stream)
     stream.seek(0)
     encoded = stream.read()
-    assert encoded == bytes.fromhex(serialized)
+    assert encoded.hex() == serialized
 
 
 @pytest.mark.parametrize("name, typ, value, serialized, root", test_data)
 def test_encode_bytes(name: str, typ: Type[View], value: View, serialized: str, root: str):
     encoded = value.encode_bytes()
-    assert encoded == bytes.fromhex(serialized)
+    assert encoded.hex() == serialized
 
 
 @pytest.mark.parametrize("name, typ, value, serialized, root", test_data)
 def test_hash_tree_root(name: str, typ: Type[View], value: View, serialized: str, root: str):
-    assert value.hash_tree_root() == bytes.fromhex(root)
+    assert value.hash_tree_root().hex() == root
 
 
 @pytest.mark.parametrize("name, typ, value, serialized, root", test_data)

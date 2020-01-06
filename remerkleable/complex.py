@@ -17,6 +17,10 @@ def decode_offset(stream: BinaryIO) -> uint32:
     return cast(uint32, uint32.deserialize(stream, OFFSET_BYTE_LENGTH))
 
 
+def encode_offset(stream: BinaryIO, offset: int):
+    return uint32(offset).serialize(stream)
+
+
 class ComplexView(SubtreeView):
     def encode_bytes(self) -> bytes:
         stream = io.BytesIO()
@@ -33,6 +37,10 @@ class ComplexView(SubtreeView):
 
 
 class MonoSubtreeView(ComplexView):
+
+    def length(self) -> int:
+        raise NotImplementedError
+
     @classmethod
     def coerce_view(cls: Type[V], v: Any) -> V:
         return cls(*v)
@@ -72,8 +80,11 @@ class MonoSubtreeView(ComplexView):
     def is_valid_count(cls, count: int) -> bool:
         raise NotImplementedError
 
+    def __iter__(self):
+        raise NotImplementedError
+
     @classmethod
-    def deserialize_elements(cls, stream: BinaryIO, scope: int) -> PyList[View]:
+    def deserialize(cls: Type[V], stream: BinaryIO, scope: int) -> V:
         elem_cls = cls.element_cls()
         if elem_cls.is_fixed_byte_length():
             elem_byte_length = elem_cls.type_byte_length()
@@ -82,12 +93,12 @@ class MonoSubtreeView(ComplexView):
             count = scope // elem_byte_length
             if not cls.is_valid_count(count):
                 raise Exception(f"count {count} is invalid")
-            return [elem_cls.deserialize(stream, elem_byte_length) for _ in range(count)]
+            return cls(elem_cls.deserialize(stream, elem_byte_length) for _ in range(count))
         else:
             if scope == 0:
                 if not cls.is_valid_count(0):
                     raise Exception("scope cannot be 0, count must not be 0")
-                return []
+                return cls()
             first_offset = decode_offset(stream)
             if first_offset > scope:
                 raise Exception(f"first offset is too big: {first_offset}, scope: {scope}")
@@ -109,17 +120,30 @@ class MonoSubtreeView(ComplexView):
                     raise Exception(f"offset[{i}] value {start} is invalid, next offset is {end},"
                                     f" implied size is {elem_size}, size bounds: [{elem_min}, {elem_max}]")
                 elems.append(elem_cls.deserialize(stream, elem_size))
-            return elems
+            return cls(*elems)
 
-    @classmethod
-    def deserialize(cls: Type[V], stream: BinaryIO, scope: int) -> V:
-        return cls(*cls.deserialize_elements(stream, scope))
+    def serialize(self, stream: BinaryIO) -> int:
+        elem_cls = self.__class__.element_cls()
+        if issubclass(elem_cls, uint8):
+            out = bytes(iter(self))
+            stream.write(out)
+            return len(out)
+        if elem_cls.is_fixed_byte_length():
+            for v in self:
+                v.serialize(stream)
+            return elem_cls.type_byte_length() * self.length()
+        else:
+            temp_dyn_stream = io.BytesIO()
+            offset = OFFSET_BYTE_LENGTH * self.length()  # the offsets are part of the fixed-size-bytes prologue
+            for v in self:
+                encode_offset(stream, offset)
+                offset += cast(View, v).serialize(temp_dyn_stream)
+            temp_dyn_stream.seek(0)
+            stream.write(temp_dyn_stream.read(offset))
+            return offset
 
 
 class MutSeqLike(ColSequence, MonoSubtreeView):
-
-    def length(self) -> int:
-        raise NotImplementedError
 
     def __len__(self):
         return self.length()
@@ -394,11 +418,8 @@ class List(MutSeqLike):
             bytes_per_elem += OFFSET_BYTE_LENGTH
         return bytes_per_elem * cls.limit()
 
-    def serialize(self, stream: BinaryIO) -> int:
-        raise NotImplementedError  # TODO
 
-
-class Vector(MutSeqLike, TypeDef):
+class Vector(MutSeqLike):
     def __new__(cls, *args, backing: Optional[Node] = None, hook: Optional[ViewHook] = None, **kwargs):
         if backing is not None:
             if len(args) != 0:
@@ -557,14 +578,6 @@ class Vector(MutSeqLike, TypeDef):
         if not elem_cls.is_fixed_byte_length():
             bytes_per_elem += OFFSET_BYTE_LENGTH
         return bytes_per_elem * cls.vector_length()
-
-    def serialize(self, stream: BinaryIO) -> int:
-        elem_cls = self.__class__.element_cls()
-        if issubclass(elem_cls, uint8):
-            out = bytes(self.__iter__())
-            stream.write(out)
-            return len(out)
-        raise NotImplementedError  # TODO other element types
 
 
 class Fields(NamedTuple):
@@ -761,4 +774,19 @@ class Container(ComplexView):
         return cls(**field_values)
 
     def serialize(self, stream: BinaryIO) -> int:
-        raise NotImplementedError  # TODO
+        fields = self.__class__.fields()
+        is_fixed_size = self.is_fixed_byte_length()
+        temp_dyn_stream = None if is_fixed_size else io.BytesIO()
+        written = sum(map((lambda x: x.type_byte_length() if x.is_fixed_byte_length() else OFFSET_BYTE_LENGTH),
+                          fields.types))
+        for fkey, ftyp in zip(fields.keys, fields.types):
+            v: View = getattr(self, fkey)
+            if ftyp.is_fixed_byte_length():
+                v.serialize(stream)
+            else:
+                encode_offset(stream, written)
+                written += v.serialize(temp_dyn_stream)
+        if not is_fixed_size:
+            temp_dyn_stream.seek(0)
+            stream.write(temp_dyn_stream.read(written))
+        return written

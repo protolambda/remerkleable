@@ -252,12 +252,6 @@ class Bitlist(BitsView):
         # bit count in bytes rounded up + delimiting bit
         return (self.length() + 7 + 1) // 8
 
-    def encode_bytes(self) -> bytes:
-        raise NotImplementedError  # TODO concat chunks, end with delimiting bit
-
-    def serialize(self, stream: BinaryIO) -> int:
-        raise NotImplementedError  # TODO write chunks, end with delimiting bit
-
     @classmethod
     def decode_bytes(cls: Type[V], bytez: bytes) -> V:
         stream = io.BytesIO()
@@ -292,6 +286,36 @@ class Bitlist(BitsView):
         contents = subtree_fill_to_contents(chunks, cls.contents_depth())
         backing = Commit(contents, uint256(bitlen).get_backing())
         return cast(Bitlist, cls.view_from_backing(backing))
+
+    def serialize(self, stream: BinaryIO) -> int:
+        backing = self.get_backing()
+        bitlen = self.length()
+        chunk_count = (bitlen + 255) // 256  # excludes delimit bit, this is the backing, not the serialized form
+        byte_len = (bitlen + 7) // 8
+        tree_depth = self.tree_depth()
+        full_chunks_count = max(0, chunk_count - 1)
+        for chunk_index in range(full_chunks_count):
+            chunk: Node = backing.getter(to_gindex(chunk_index, tree_depth))
+            if not isinstance(chunk, RootNode):
+                raise Exception(f"expected a root-node in bitlist backing at chunk index {chunk_index}")
+            stream.write(chunk.root)
+        last_chunk = backing.getter(to_gindex(chunk_count - 1, tree_depth))
+        if not isinstance(last_chunk, RootNode):
+            raise Exception(f"expected a root-node in bitlist backing at chunk index {chunk_count - 1}")
+        if chunk_count > 0:
+            # write the last chunk, may not be a full chunk
+            last_chunk_bytes_count = byte_len - (full_chunks_count * 32)
+            bytez = last_chunk.root[:last_chunk_bytes_count]
+            # add in delimiting bit
+            if bitlen % 8 == 0:
+                bytez += b"\x01"
+            else:
+                bytez = bytez[:len(bytez) - 1] +\
+                        (bytez[len(bytez) - 1] ^ (1 << (bitlen % 8))).to_bytes(length=1, byteorder='little')
+            stream.write(bytez)
+        else:
+            stream.write(b"\x01")  # empty bitlist still has a delimiting bit
+        return byte_len
 
 
 class Bitvector(BitsView, FixedByteLengthViewHelper):
@@ -377,8 +401,23 @@ class Bitvector(BitsView, FixedByteLengthViewHelper):
         backing = subtree_fill_to_contents(chunks, cls.tree_depth())
         return cast(Bitvector, cls.view_from_backing(backing))
 
-    def encode_bytes(self) -> bytes:
-        raise NotImplementedError  # TODO concat chunks, end at length
-
     def serialize(self, stream: BinaryIO) -> int:
-        raise NotImplementedError  # TODO write chunks, end at length
+        backing = self.get_backing()
+        bitlen = self.length()
+        chunk_count = (bitlen + 255) // 256  # excludes delimit bit, this is the backing, not the serialized form
+        byte_len = (bitlen + 7) // 8
+        tree_depth = self.tree_depth()
+        full_chunks_count = max(0, chunk_count - 1)
+        for chunk_index in range(full_chunks_count):
+            chunk: Node = backing.getter(to_gindex(chunk_index, tree_depth))
+            if not isinstance(chunk, RootNode):
+                raise Exception(f"expected a root-node in bitlist backing at chunk index {chunk_index}")
+            stream.write(chunk.root)
+        last_chunk = backing.getter(to_gindex(chunk_count - 1, tree_depth))
+        if not isinstance(last_chunk, RootNode):
+            raise Exception(f"expected a root-node in bitlist backing at chunk index {chunk_count - 1}")
+        if chunk_count > 0:
+            # write the last chunk, may not be a full chunk
+            last_chunk_bytes_count = byte_len - (full_chunks_count * 32)
+            stream.write(last_chunk.root[:last_chunk_bytes_count])
+        return byte_len
