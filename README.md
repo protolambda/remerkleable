@@ -9,7 +9,7 @@ Features:
     - list, container, vector
     - basic types
 - Functionality:
-    - Serialize basic types. Into output stream and as `bytes`
+    - Serialize all types. Into output stream (returning the written count) and as `bytes`
     - Deserialize all types. From input stream (and scope) and from `bytes`
     - Hash-tree-root all types
     - Merkle-based data-sharing:
@@ -20,10 +20,6 @@ Features:
         - *SSZ-Partials*: if a *partial* proof is loaded as backing, a view can be overlaid,
           and the partial backing works as long as no excluded branches are accessed.
     - Get serialization info from the bare types: min/max byte length, or just byte length for fixed-length types.
-
-TODO features:
- - custom bitvector,bitlist,vector,bitlist subclass checking: check element type and vector_length/limit
- - implement serialization for bitfield and complex types
 
  
 ## License
