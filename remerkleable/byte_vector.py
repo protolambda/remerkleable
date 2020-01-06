@@ -1,6 +1,6 @@
-from pymerkles.tree import Node, RootNode, Root, subtree_fill_to_contents, get_depth, to_gindex, must_leaf, \
+from remerkleable.tree import Node, RootNode, Root, subtree_fill_to_contents, get_depth, to_gindex, must_leaf, \
     subtree_fill_to_length
-from pymerkles.core import View, ViewHook, TypeDef, zero_node, FixedByteLengthTypeHelper, FixedByteLengthViewHelper, pack_bytes_to_chunks
+from remerkleable.core import View, ViewHook, TypeDef, zero_node, FixedByteLengthTypeHelper, FixedByteLengthViewHelper, pack_bytes_to_chunks
 from typing import Optional, Any, TypeVar, Type
 from types import GeneratorType
 

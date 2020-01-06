@@ -1,10 +1,10 @@
 from typing import Iterable
 import io
-from pymerkles.complex import Container, Vector, List
-from pymerkles.basic import boolean, bit, uint, byte, uint8, uint16, uint32, uint64, uint128, uint256
-from pymerkles.bitfields import Bitvector, Bitlist
-from pymerkles.byte_vector import ByteVector
-from pymerkles.core import BasicView, View, TypeDef
+from remerkleable.complex import Container, Vector, List
+from remerkleable.basic import boolean, bit, uint, byte, uint8, uint16, uint32, uint64, uint128, uint256
+from remerkleable.bitfields import Bitvector, Bitlist
+from remerkleable.byte_vector import ByteVector
+from remerkleable.core import BasicView, View, TypeDef
 from hashlib import sha256
 
 import pytest

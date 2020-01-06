@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
-from pymerkles.core import TypeDef, View, BackedView, BasicTypeHelperDef, BasicView
-from pymerkles.tree import Link, to_gindex, RootNode, NavigationError
+from remerkleable.core import TypeDef, View, BackedView, BasicTypeHelperDef, BasicView
+from remerkleable.tree import Link, to_gindex, RootNode, NavigationError
 
 
 class SubtreeTypeDef(ABC, TypeDef):

@@ -4,11 +4,11 @@ from collections.abc import Sequence as ColSequence
 from itertools import chain
 from abc import ABC, abstractmethod
 import io
-from pymerkles.core import TypeDef, View, BasicTypeHelperDef, BasicView, OFFSET_BYTE_LENGTH, ViewHook
-from pymerkles.basic import uint256, uint8, uint32
-from pymerkles.tree import Node, subtree_fill_to_length, subtree_fill_to_contents,\
+from remerkleable.core import TypeDef, View, BasicTypeHelperDef, BasicView, OFFSET_BYTE_LENGTH, ViewHook
+from remerkleable.basic import uint256, uint8, uint32
+from remerkleable.tree import Node, subtree_fill_to_length, subtree_fill_to_contents,\
     zero_node, Gindex, Commit, to_gindex, NavigationError, get_depth
-from pymerkles.subtree import SubtreeTypeDef, SubtreeView
+from remerkleable.subtree import SubtreeTypeDef, SubtreeView
 
 V = TypeVar('V', bound=View)
 

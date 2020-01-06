@@ -1,6 +1,6 @@
 from typing import Any, TypeVar, Type
 from abc import abstractmethod
-from pymerkles.core import BasicTypeHelperDef, BasicView, View
+from remerkleable.core import BasicTypeHelperDef, BasicView, View
 
 V = TypeVar('V', bound=View)
 

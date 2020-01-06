@@ -3,11 +3,11 @@ from types import GeneratorType
 from collections.abc import Sequence as ColSequence
 from abc import ABC, abstractmethod
 import io
-from pymerkles.core import TypeDef, BackedView, FixedByteLengthTypeHelper, FixedByteLengthViewHelper, \
+from remerkleable.core import TypeDef, BackedView, FixedByteLengthTypeHelper, FixedByteLengthViewHelper, \
     pack_bits_to_chunks, View
-from pymerkles.tree import Node, Commit, zero_node, Gindex, to_gindex, Link, RootNode, NavigationError,\
+from remerkleable.tree import Node, Commit, zero_node, Gindex, to_gindex, Link, RootNode, NavigationError,\
     Root, subtree_fill_to_contents, get_depth
-from pymerkles.basic import boolean, uint256
+from remerkleable.basic import boolean, uint256
 
 V = TypeVar('V', bound=View)
 

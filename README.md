@@ -1,9 +1,6 @@
-# pymerkles
+# `remerkleable`
 
-Typed mutable SSZ views over cached and immutable binary merkle trees.
-
-
-Goal: plug-in replacement for pyspec-ssz, to run a mainnet state with caching and merkle proof suite.
+Remerkleable: Typed mutable SSZ views over cached and immutable binary merkle trees.
 
 Features:
 - Types:
@@ -31,4 +28,4 @@ TODO features:
  
 ## License
 
-MIT
+MIT, see [`LICENSE` file](LICENSE).

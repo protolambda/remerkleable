@@ -1,7 +1,7 @@
-from pymerkles.complex import Container, List, Vector
-from pymerkles.basic import uint64, boolean
-from pymerkles.byte_vector import ByteVector
-from pymerkles.tree import merkle_hash
+from remerkleable.complex import Container, List, Vector
+from remerkleable.basic import uint64, boolean
+from remerkleable.byte_vector import ByteVector
+from remerkleable.tree import merkle_hash
 
 Bytes32 = ByteVector[32]
 Bytes48 = ByteVector[48]

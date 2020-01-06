@@ -1,9 +1,9 @@
-from pymerkles.core import View, TypeDef, BasicView
-from pymerkles.complex import Container, Vector, List
-from pymerkles.basic import boolean, bit, uint, byte, uint8, uint16, uint32, uint64, uint128, uint256
-from pymerkles.bitfields import Bitvector, Bitlist
-from pymerkles.byte_vector import ByteVector, Bytes1, Bytes4, Bytes8, Bytes32, Bytes48, Bytes96
-from pymerkles.core import BasicView, View, TypeDef
+from remerkleable.core import View, TypeDef, BasicView
+from remerkleable.complex import Container, Vector, List
+from remerkleable.basic import boolean, bit, uint, byte, uint8, uint16, uint32, uint64, uint128, uint256
+from remerkleable.bitfields import Bitvector, Bitlist
+from remerkleable.byte_vector import ByteVector, Bytes1, Bytes4, Bytes8, Bytes32, Bytes48, Bytes96
+from remerkleable.core import BasicView, View, TypeDef
 
 
 def expect_value_error(fn, msg):

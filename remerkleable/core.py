@@ -1,6 +1,6 @@
 from typing import Callable, Optional, Any, cast, List as PyList, BinaryIO, TypeVar, Type
 from abc import ABCMeta, ABC, abstractmethod
-from pymerkles.tree import Node, Root, RootNode, zero_node, merkle_hash
+from remerkleable.tree import Node, Root, RootNode, zero_node, merkle_hash
 from itertools import zip_longest
 from typing import Iterable, Tuple
 
