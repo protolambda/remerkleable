@@ -1,10 +1,10 @@
-from typing import Iterable
+from typing import Iterable, Type
 import io
 from remerkleable.complex import Container, Vector, List
 from remerkleable.basic import boolean, bit, uint, byte, uint8, uint16, uint32, uint64, uint128, uint256
 from remerkleable.bitfields import Bitvector, Bitlist
 from remerkleable.byte_vector import ByteVector
-from remerkleable.core import BasicView, View, TypeDef
+from remerkleable.core import TypeDef, BasicView, View
 from hashlib import sha256
 
 import pytest
@@ -258,7 +258,7 @@ test_data = [
 
 
 @pytest.mark.parametrize("name, typ, value, serialized, root", test_data)
-def test_type_bounds(name: str, typ: TypeDef, value: View, serialized: str, root: str):
+def test_type_bounds(name: str, typ: Type[View], value: View, serialized: str, root: str):
     byte_len = len(bytes.fromhex(serialized))
     assert typ.min_byte_length() <= byte_len <= typ.max_byte_length()
     if typ.is_fixed_byte_length():
@@ -266,19 +266,17 @@ def test_type_bounds(name: str, typ: TypeDef, value: View, serialized: str, root
 
 
 @pytest.mark.parametrize("name, typ, value, serialized, root", test_data)
-def test_value_byte_length(name: str, typ: TypeDef, value: View, serialized: str, root: str):
+def test_value_byte_length(name: str, typ: Type[View], value: View, serialized: str, root: str):
     assert value.value_byte_length() == len(bytes.fromhex(serialized))
 
 
 @pytest.mark.parametrize("name, typ, value, serialized, root", test_data)
-def test_subclass(name: str, typ: TypeDef, value: View, serialized: str, root: str):
-    assert typ == value.__class__
-    assert issubclass(typ, value.__class__)
-    assert issubclass(value.__class__, typ)
+def test_typedef(name: str, typ: Type[View], value: View, serialized: str, root: str):
+    assert issubclass(typ, TypeDef)
 
 
 @pytest.mark.parametrize("name, typ, value, serialized, root", test_data)
-def test_serialize(name: str, typ: TypeDef, value: View, serialized: str, root: str):
+def test_serialize(name: str, typ: Type[View], value: View, serialized: str, root: str):
     stream = io.BytesIO()
     value.serialize(stream)
     stream.seek(0)
@@ -287,18 +285,18 @@ def test_serialize(name: str, typ: TypeDef, value: View, serialized: str, root: 
 
 
 @pytest.mark.parametrize("name, typ, value, serialized, root", test_data)
-def test_encode_bytes(name: str, typ: TypeDef, value: View, serialized: str, root: str):
+def test_encode_bytes(name: str, typ: Type[View], value: View, serialized: str, root: str):
     encoded = value.encode_bytes()
     assert encoded == bytes.fromhex(serialized)
 
 
 @pytest.mark.parametrize("name, typ, value, serialized, root", test_data)
-def test_hash_tree_root(name: str, typ: TypeDef, value: View, serialized: str, root: str):
+def test_hash_tree_root(name: str, typ: Type[View], value: View, serialized: str, root: str):
     assert value.hash_tree_root() == bytes.fromhex(root)
 
 
 @pytest.mark.parametrize("name, typ, value, serialized, root", test_data)
-def test_deserialize(name: str, typ: TypeDef, value: View, serialized: str, root: str):
+def test_deserialize(name: str, typ: Type[View], value: View, serialized: str, root: str):
     stream = io.BytesIO()
     bytez = bytes.fromhex(serialized)
     stream.write(bytez)
@@ -308,7 +306,7 @@ def test_deserialize(name: str, typ: TypeDef, value: View, serialized: str, root
 
 
 @pytest.mark.parametrize("name, typ, value, serialized, root", test_data)
-def test_decode_bytes(name: str, typ: TypeDef, value: View, serialized: str, root: str):
+def test_decode_bytes(name: str, typ: Type[View], value: View, serialized: str, root: str):
     bytez = bytes.fromhex(serialized)
     decoded = typ.decode_bytes(bytez)
     assert decoded == value

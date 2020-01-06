@@ -1,70 +1,15 @@
 from remerkleable.tree import Node, RootNode, Root, subtree_fill_to_contents, get_depth, to_gindex, must_leaf, \
     subtree_fill_to_length
-from remerkleable.core import View, ViewHook, TypeDef, zero_node, FixedByteLengthTypeHelper, FixedByteLengthViewHelper, pack_bytes_to_chunks
+from remerkleable.core import View, ViewHook, zero_node, FixedByteLengthViewHelper, pack_bytes_to_chunks
 from typing import Optional, Any, TypeVar, Type
 from types import GeneratorType
 
 V = TypeVar('V', bound=View)
 
 
-class ByteVectorType(FixedByteLengthTypeHelper, TypeDef):
-
-    @classmethod
-    def view_from_backing(mcs: Type[Type[V]], node: Node, hook: Optional[ViewHook[V]] = None) -> V:
-        depth = mcs.tree_depth()
-        byte_len = mcs.type_byte_length()
-        if depth == 0:
-            if isinstance(node, RootNode):
-                return mcs.decode_bytes(node.root[:byte_len])
-            else:
-                raise Exception("cannot create <= 32 byte view from composite node!")
-        else:
-            chunk_count = (byte_len + 31) // 32
-            chunks = [node.getter(to_gindex(i, depth)) for i in range(chunk_count)]
-            bytez = b"".join(map(must_leaf, chunks))[:byte_len]
-            return mcs.decode_bytes(bytez)
-
-    @classmethod
-    def tree_depth(mcs) -> int:
-        raise NotImplementedError
-
-    def __getitem__(self, length):
-        chunk_count = (length + 31) // 32
-        tree_depth = get_depth(chunk_count)
-
-        class SpecialByteVectorType(ByteVectorType):
-            @classmethod
-            def default_node(mcs) -> Node:
-                return subtree_fill_to_length(zero_node(0), tree_depth, chunk_count)
-
-            @classmethod
-            def tree_depth(mcs) -> int:
-                return tree_depth
-
-            @classmethod
-            def decode_bytes(mcs: Type[Type[V]], bytez: bytes) -> V:
-                return SpecialByteVectorView(bytez)
-
-            @classmethod
-            def coerce_view(mcs: Type[Type[V]], v: Any) -> V:
-                return SpecialByteVectorView(v)
-
-            @classmethod
-            def type_byte_length(mcs) -> int:
-                return length
-
-        class SpecialByteVectorView(ByteVector, metaclass=SpecialByteVectorType):
-            pass
-
-        return SpecialByteVectorView
-
-    def __repr__(self):
-        return f"ByteVector[{self.type_byte_length()}]"
-
-
-class ByteVector(bytes, FixedByteLengthViewHelper, View, metaclass=ByteVectorType):
+class ByteVector(bytes, FixedByteLengthViewHelper, View):
     def __new__(cls, *args, **kwargs):
-        byte_len = cls.__class__.type_byte_length()
+        byte_len = cls.type_byte_length()
         if len(args) == 0:
             return super().__new__(cls, b"\x00" * byte_len, **kwargs)
         elif len(args) == 1:
@@ -83,6 +28,52 @@ class ByteVector(bytes, FixedByteLengthViewHelper, View, metaclass=ByteVectorTyp
         else:
             raise Exception(f"unexpected arguments: {list(args)}")
 
+    def __class_getitem__(cls, length) -> Type["ByteVector"]:
+        chunk_count = (length + 31) // 32
+        tree_depth = get_depth(chunk_count)
+
+        class SpecialByteVectorView(ByteVector):
+            @classmethod
+            def default_node(cls) -> Node:
+                return subtree_fill_to_length(zero_node(0), tree_depth, chunk_count)
+
+            @classmethod
+            def tree_depth(cls) -> int:
+                return tree_depth
+
+            @classmethod
+            def type_byte_length(cls) -> int:
+                return length
+
+        return SpecialByteVectorView
+
+    @classmethod
+    def type_repr(cls) -> str:
+        return f"ByteVector[{cls.type_byte_length()}]"
+
+    @classmethod
+    def coerce_view(cls: Type[V], v: Any) -> V:
+        return cls(v)
+
+    @classmethod
+    def view_from_backing(cls: Type[V], node: Node, hook: Optional[ViewHook[V]] = None) -> V:
+        depth = cls.tree_depth()
+        byte_len = cls.type_byte_length()
+        if depth == 0:
+            if isinstance(node, RootNode):
+                return cls.decode_bytes(node.root[:byte_len])
+            else:
+                raise Exception("cannot create <= 32 byte view from composite node!")
+        else:
+            chunk_count = (byte_len + 31) // 32
+            chunks = [node.getter(to_gindex(i, depth)) for i in range(chunk_count)]
+            bytez = b"".join(map(must_leaf, chunks))[:byte_len]
+            return cls.decode_bytes(bytez)
+
+    @classmethod
+    def tree_depth(cls) -> int:
+        raise NotImplementedError
+
     def get_backing(self) -> Node:
         if len(self) == 32:  # super common case, optimize for it
             return RootNode(Root(self))
@@ -99,6 +90,10 @@ class ByteVector(bytes, FixedByteLengthViewHelper, View, metaclass=ByteVectorTyp
 
     def __str__(self):
         return "0x" + self.hex()
+
+    @classmethod
+    def decode_bytes(cls: Type[V], bytez: bytes) -> V:
+        return cls(bytez)
 
     def encode_bytes(self) -> bytes:
         return self
