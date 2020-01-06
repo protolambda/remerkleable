@@ -1,10 +1,12 @@
+# flake8:noqa E501  Ignore long lines, some test cases are just inherently long
+
 from typing import Iterable, Type
 import io
 from remerkleable.complex import Container, Vector, List
-from remerkleable.basic import boolean, bit, uint, byte, uint8, uint16, uint32, uint64, uint128, uint256
+from remerkleable.basic import boolean, bit, byte, uint8, uint16, uint32, uint64, uint128, uint256
 from remerkleable.bitfields import Bitvector, Bitlist
 from remerkleable.byte_vector import ByteVector
-from remerkleable.core import TypeDef, BasicView, View
+from remerkleable.core import TypeDef, View
 from hashlib import sha256
 
 import pytest
@@ -120,7 +122,15 @@ test_data = [
     ("uint32 01234567", uint32, uint32(0x01234567), "67452301", chunk("67452301")),
     ("uint64 0000000000000000", uint64, uint64(0x00000000), "0000000000000000", chunk("0000000000000000")),
     ("uint64 0123456789abcdef", uint64, uint64(0x0123456789abcdef), "efcdab8967452301", chunk("efcdab8967452301")),
+    ("uint128 00000000000000000000000000000000", uint128, uint128(0), "00000000000000000000000000000000", chunk("00000000000000000000000000000000")),
+    ("uint128 11223344556677880123456789abcdef", uint128, uint128(0x11223344556677880123456789abcdef), "efcdab89674523018877665544332211", chunk("efcdab89674523018877665544332211")),
     ("sig", Vector[byte, 96], Vector[byte, 96](*sig_test_data),
+     "0100000000000000000000000000000000000000000000000000000000000000"
+     "0200000000000000000000000000000000000000000000000000000000000000"
+     "03000000000000000000000000000000000000000000000000000000000000ff",
+     h(h(chunk("01"), chunk("02")),
+       h("03000000000000000000000000000000000000000000000000000000000000ff", chunk("")))),
+    ("raw sig", ByteVector[96], ByteVector[96](*sig_test_data),
      "0100000000000000000000000000000000000000000000000000000000000000"
      "0200000000000000000000000000000000000000000000000000000000000000"
      "03000000000000000000000000000000000000000000000000000000000000ff",

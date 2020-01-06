@@ -1,3 +1,5 @@
+# flake8:noqa F401  Ignore unused imports. Tests are a work in progress.
+
 from remerkleable.core import View, TypeDef, BasicView
 from remerkleable.complex import Container, Vector, List
 from remerkleable.basic import boolean, bit, uint, byte, uint8, uint16, uint32, uint64, uint128, uint256

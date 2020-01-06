@@ -26,7 +26,7 @@ class ByteVector(bytes, FixedByteLengthViewHelper, View):
                 raise Exception(f"incorrect byte length: {len(data)}, expected {byte_len}")
             return super().__new__(cls, data, **kwargs)
         else:
-            raise Exception(f"unexpected arguments: {list(args)}")
+            return super().__new__(cls, bytes(args), **kwargs)
 
     def __class_getitem__(cls, length) -> Type["ByteVector"]:
         chunk_count = (length + 31) // 32

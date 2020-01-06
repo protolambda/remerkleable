@@ -278,7 +278,8 @@ class Bitlist(BitsView):
         last_byte_bitlen = last_byte.bit_length() - 1  # excluding the delimiting bit
         bitlen = bytelen * 8 + last_byte_bitlen
         if bitlen % 256 != 0:
-            last_chunk = last_chunk_part[:scope-1] + (last_byte ^ (1 << last_byte_bitlen)).to_bytes(length=1, byteorder='little')
+            last_chunk = last_chunk_part[:scope-1] +\
+                         (last_byte ^ (1 << last_byte_bitlen)).to_bytes(length=1, byteorder='little')
             last_chunk += b"\x00" * (32 - len(last_chunk))
             chunks.append(RootNode(Root(last_chunk)))
         if bitlen > cls.limit():
