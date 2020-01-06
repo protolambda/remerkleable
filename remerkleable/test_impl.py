@@ -278,10 +278,11 @@ def test_typedef(name: str, typ: Type[View], value: View, serialized: str, root:
 @pytest.mark.parametrize("name, typ, value, serialized, root", test_data)
 def test_serialize(name: str, typ: Type[View], value: View, serialized: str, root: str):
     stream = io.BytesIO()
-    value.serialize(stream)
+    length = value.serialize(stream)
     stream.seek(0)
     encoded = stream.read()
     assert encoded.hex() == serialized
+    assert length*2 == len(serialized)
 
 
 @pytest.mark.parametrize("name, typ, value, serialized, root", test_data)

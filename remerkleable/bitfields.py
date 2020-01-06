@@ -315,7 +315,7 @@ class Bitlist(BitsView):
             stream.write(bytez)
         else:
             stream.write(b"\x01")  # empty bitlist still has a delimiting bit
-        return byte_len
+        return (bitlen + 7 + 1) // 8  # includes delimit bit in length computation
 
 
 class Bitvector(BitsView, FixedByteLengthViewHelper):
