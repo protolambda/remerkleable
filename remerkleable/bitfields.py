@@ -4,7 +4,7 @@ from collections.abc import Sequence as ColSequence
 import io
 from remerkleable.core import BackedView, FixedByteLengthViewHelper, \
     pack_bits_to_chunks, View
-from remerkleable.tree import Node, Commit, zero_node, Gindex, to_gindex, Link, RootNode, NavigationError,\
+from remerkleable.tree import Node, PairNode, zero_node, Gindex, to_gindex, Link, RootNode, NavigationError,\
     Root, subtree_fill_to_contents, get_depth
 from remerkleable.basic import boolean, uint256
 
@@ -117,7 +117,7 @@ class Bitlist(BitsView):
             input_bits = list(map(bool, vals))
             input_nodes = pack_bits_to_chunks(input_bits)
             contents = subtree_fill_to_contents(input_nodes, cls.contents_depth())
-            kwargs['backing'] = Commit(contents, uint256(len(input_bits)).get_backing())
+            kwargs['backing'] = PairNode(contents, uint256(len(input_bits)).get_backing())
         return super().__new__(cls, **kwargs)
 
     def __class_getitem__(cls, limit) -> Type["Bitlist"]:
@@ -142,7 +142,7 @@ class Bitlist(BitsView):
 
     @classmethod
     def default_node(cls) -> Node:
-        return Commit(zero_node(cls.contents_depth()), zero_node(0))  # mix-in 0 as list length
+        return PairNode(zero_node(cls.contents_depth()), zero_node(0))  # mix-in 0 as list length
 
     @classmethod
     def type_repr(cls) -> str:
@@ -285,7 +285,7 @@ class Bitlist(BitsView):
         if bitlen > cls.limit():
             raise Exception(f"bitlist too long: {bitlen}, delimiting bit is over limit ({cls.limit()})")
         contents = subtree_fill_to_contents(chunks, cls.contents_depth())
-        backing = Commit(contents, uint256(bitlen).get_backing())
+        backing = PairNode(contents, uint256(bitlen).get_backing())
         return cast(Bitlist, cls.view_from_backing(backing))
 
     def serialize(self, stream: BinaryIO) -> int:

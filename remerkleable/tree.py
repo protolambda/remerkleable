@@ -94,7 +94,7 @@ class InvalidTreeError(RuntimeError):
     pass
 
 
-class Commit(Node):
+class PairNode(Node):
     left: Node
     right: Node
     root: Optional[Root]
@@ -146,11 +146,11 @@ class Commit(Node):
             inner = self.right.setter(Gindex(target ^ anchor | pivot))
             return compose(inner, self.rebind_right)
 
-    def rebind_left(self, v: Node) -> "Commit":
-        return Commit(v, self.right)
+    def rebind_left(self, v: Node) -> "PairNode":
+        return PairNode(v, self.right)
 
-    def rebind_right(self, v: Node) -> "Commit":
-        return Commit(self.left, v)
+    def rebind_right(self, v: Node) -> "PairNode":
+        return PairNode(self.left, v)
 
     def expand_into(self, target: Gindex) -> Link:
         if target < 1:
@@ -189,7 +189,7 @@ class Commit(Node):
 def subtree_fill_to_depth(bottom: Node, depth: int) -> Node:
     node = bottom
     while depth > 0:
-        node = Commit(node, node)
+        node = PairNode(node, node)
         depth -= 1
     return node
 
@@ -205,14 +205,14 @@ def subtree_fill_to_length(bottom: Node, depth: int, length: int) -> Node:
         else:
             raise NavigationError
     if depth == 1:
-        return Commit(bottom, bottom if length > 1 else zero_node(0))
+        return PairNode(bottom, bottom if length > 1 else zero_node(0))
     else:
         anchor = 1 << depth
         pivot = anchor >> 1
         if length <= pivot:
-            return Commit(subtree_fill_to_length(bottom, depth-1, length), zero_node(depth))
+            return PairNode(subtree_fill_to_length(bottom, depth - 1, length), zero_node(depth))
         else:
-            return Commit(
+            return PairNode(
                 subtree_fill_to_depth(bottom, depth-1),
                 subtree_fill_to_length(bottom, depth-1, length - pivot)
             )
@@ -227,14 +227,14 @@ def subtree_fill_to_contents(nodes: List[Node], depth: int) -> Node:
         else:
             raise NavigationError
     if depth == 1:
-        return Commit(nodes[0], nodes[1] if len(nodes) > 1 else zero_node(0))
+        return PairNode(nodes[0], nodes[1] if len(nodes) > 1 else zero_node(0))
     else:
         anchor = 1 << depth
         pivot = anchor >> 1
         if len(nodes) <= pivot:
-            return Commit(subtree_fill_to_contents(nodes, depth-1), zero_node(depth-1))
+            return PairNode(subtree_fill_to_contents(nodes, depth - 1), zero_node(depth - 1))
         else:
-            return Commit(
+            return PairNode(
                 subtree_fill_to_contents(nodes[:pivot], depth-1),
                 subtree_fill_to_contents(nodes[pivot:], depth-1)
             )
@@ -262,7 +262,7 @@ class RootNode(Node):
         if target == 1:
             return identity
         child = zero_node(target.bit_length() - 2)
-        return Commit(child, child).expand_into(target)
+        return PairNode(child, child).expand_into(target)
 
     def merkle_root(self, h: MerkleFn) -> "Root":
         return self.root

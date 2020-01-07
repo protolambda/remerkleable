@@ -7,7 +7,7 @@ import io
 from remerkleable.core import TypeDef, View, BasicTypeDef, BasicView, OFFSET_BYTE_LENGTH, ViewHook
 from remerkleable.basic import uint256, uint8, uint32
 from remerkleable.tree import Node, subtree_fill_to_length, subtree_fill_to_contents,\
-    zero_node, Gindex, Commit, to_gindex, NavigationError, get_depth
+    zero_node, Gindex, PairNode, to_gindex, NavigationError, get_depth
 from remerkleable.subtree import SubtreeView
 
 V = TypeVar('V', bound=View)
@@ -212,7 +212,7 @@ class List(MutSeqLike):
                     input_views.append(elem_cls.coerce_view(el))
             input_nodes = cls.views_into_chunks(input_views)
             contents = subtree_fill_to_contents(input_nodes, cls.contents_depth())
-            backing = Commit(contents, uint256(len(input_views)).get_backing())
+            backing = PairNode(contents, uint256(len(input_views)).get_backing())
         return super().__new__(cls, backing=backing, hook=hook, **kwargs)
 
     def __class_getitem__(cls, params) -> Type["List"]:
@@ -400,7 +400,7 @@ class List(MutSeqLike):
 
     @classmethod
     def default_node(cls) -> Node:
-        return Commit(zero_node(cls.contents_depth()), zero_node(0))  # mix-in 0 as list length
+        return PairNode(zero_node(cls.contents_depth()), zero_node(0))  # mix-in 0 as list length
 
     @classmethod
     def is_fixed_byte_length(cls) -> bool:
