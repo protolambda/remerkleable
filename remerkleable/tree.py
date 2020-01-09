@@ -1,6 +1,5 @@
-from typing import Callable, NewType, List, Optional
+from typing import Callable, NewType, List, Optional, Protocol, TypeVar
 from hashlib import sha256
-from abc import ABC, abstractmethod
 
 
 # Get the depth required for a given element count
@@ -34,32 +33,25 @@ def merkle_hash(left: Root, right: Root):
     return sha256(left + right).digest()
 
 
-class Node(ABC, object):
+Link = Callable[["Node"], "Node"]
+SummaryLink = Callable[[], "Node"]
 
-    @abstractmethod
+
+class Node(Protocol):
+
     def getter(self, target: Gindex) -> "Node":
-        raise NotImplementedError
+        raise NavigationError
 
-    @abstractmethod
-    def setter(self, target: Gindex) -> "Link":
-        raise NotImplementedError
+    def setter(self, target: Gindex, expand: bool = False) -> Link:
+        ...
 
-    @abstractmethod
-    def expand_into(self, target: Gindex) -> "Link":
-        raise NotImplementedError
-
-    def summarize_into(self, target: Gindex) -> "SummaryLink":
+    def summarize_into(self, target: Gindex) -> SummaryLink:
         setter = self.setter(target)
+        getter = self.getter(target)
+        return lambda: setter(RootNode(getter.merkle_root(merkle_hash)))
 
-        def summary() -> "Node":
-            summary_root = self.getter(target).merkle_root(merkle_hash)
-            return setter(RootNode(summary_root))
-
-        return summary
-
-    @abstractmethod
-    def merkle_root(self, h: MerkleFn) -> "Root":
-        raise NotImplementedError
+    def merkle_root(self, h: MerkleFn) -> Root:
+        ...
 
 
 # hashes of hashes of zeroes etc.
@@ -71,11 +63,6 @@ for i in range(100):
 
 def zero_node(depth: int) -> "RootNode":
     return RootNode(zero_hashes[depth])
-
-
-Link = NewType("Link", Callable[[Node], Node])
-
-SummaryLink = NewType("SummaryLink", Callable[[], Node])
 
 
 def identity(v: Node) -> Node:
@@ -90,8 +77,7 @@ class NavigationError(RuntimeError):
     pass
 
 
-class InvalidTreeError(RuntimeError):
-    pass
+V = TypeVar('V', bound=Node)
 
 
 class PairNode(Node):
@@ -116,15 +102,11 @@ class PairNode(Node):
         anchor = get_anchor_gindex(target)
         pivot = anchor >> 1
         if target < (target | pivot):
-            if self.left is None:
-                raise InvalidTreeError
             return self.left.getter(Gindex(target ^ anchor | pivot))
         else:
-            if self.right is None:
-                raise InvalidTreeError
             return self.right.getter(Gindex(target ^ anchor | pivot))
 
-    def setter(self, target: Gindex) -> Link:
+    def setter(self, target: Gindex, expand: bool = False) -> Link:
         if target < 1:
             raise NavigationError
         if target == 1:
@@ -136,14 +118,10 @@ class PairNode(Node):
         anchor = get_anchor_gindex(target)
         pivot = anchor >> 1
         if target < (target | pivot):
-            if self.left is None:
-                raise InvalidTreeError
-            inner = self.left.setter(Gindex(target ^ anchor | pivot))
+            inner = self.left.setter(Gindex(target ^ anchor | pivot), expand=expand)
             return compose(inner, self.rebind_left)
         else:
-            if self.right is None:
-                raise InvalidTreeError
-            inner = self.right.setter(Gindex(target ^ anchor | pivot))
+            inner = self.right.setter(Gindex(target ^ anchor | pivot), expand=expand)
             return compose(inner, self.rebind_right)
 
     def rebind_left(self, v: Node) -> "PairNode":
@@ -152,33 +130,9 @@ class PairNode(Node):
     def rebind_right(self, v: Node) -> "PairNode":
         return PairNode(self.left, v)
 
-    def expand_into(self, target: Gindex) -> Link:
-        if target < 1:
-            raise NavigationError
-        if target == 1:
-            return identity
-        if target == 2:
-            return self.rebind_left
-        if target == 3:
-            return self.rebind_right
-        anchor = get_anchor_gindex(target)
-        pivot = anchor >> 1
-        if target < (target | pivot):
-            if self.left is None:
-                raise InvalidTreeError
-            inner = self.left.expand_into(Gindex(target ^ anchor | pivot))
-            return compose(inner, self.rebind_left)
-        else:
-            if self.right is None:
-                raise InvalidTreeError
-            inner = self.right.expand_into(Gindex(target ^ anchor | pivot))
-            return compose(inner, self.rebind_right)
-
-    def merkle_root(self, h: MerkleFn) -> "Root":
+    def merkle_root(self, h: MerkleFn) -> Root:
         if self.root is not None:
             return self.root
-        if self.left is None or self.right is None:
-            raise InvalidTreeError
         self.root = h(self.left.merkle_root(h), self.right.merkle_root(h))
         return self.root
 
@@ -251,20 +205,18 @@ class RootNode(Node):
             raise NavigationError
         return self
 
-    def setter(self, target: Gindex) -> Link:
-        if target != 1:
-            raise NavigationError
-        return identity
-
-    def expand_into(self, target: Gindex) -> Link:
+    def setter(self, target: Gindex, expand: bool = False) -> Link:
         if target < 1:
             raise NavigationError
         if target == 1:
             return identity
-        child = zero_node(target.bit_length() - 2)
-        return PairNode(child, child).expand_into(target)
+        if expand:
+            child = zero_node(target.bit_length() - 2)
+            return PairNode(child, child).setter(target, expand=True)
+        else:
+            raise NavigationError
 
-    def merkle_root(self, h: MerkleFn) -> "Root":
+    def merkle_root(self, h: MerkleFn) -> Root:
         return self.root
 
     def __repr__(self):

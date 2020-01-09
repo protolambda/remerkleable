@@ -275,7 +275,7 @@ class List(MutSeqLike):
                 chunk_i = i // elems_per_chunk
                 target: Gindex = to_gindex(chunk_i, self.__class__.tree_depth())
                 if i % elems_per_chunk == 0:
-                    set_last = next_backing.expand_into(target)
+                    set_last = next_backing.setter(target, expand=True)
                     chunk = zero_node(0)
                 else:
                     set_last = next_backing.setter(target)
@@ -286,7 +286,7 @@ class List(MutSeqLike):
                 raise Exception("cannot append a packed element that is not a basic type")
         else:
             target: Gindex = to_gindex(i, self.__class__.tree_depth())
-            set_last = self.get_backing().expand_into(target)
+            set_last = self.get_backing().setter(target, expand=True)
             next_backing = set_last(v.get_backing())
 
         set_length = next_backing.setter(Gindex(3))

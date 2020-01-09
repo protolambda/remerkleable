@@ -174,7 +174,7 @@ class Bitlist(BitsView):
         chunk_i = i // 256
         target: Gindex = to_gindex(chunk_i, self.__class__.tree_depth())
         if i & 0xff == 0:
-            set_last = self.get_backing().expand_into(target)
+            set_last = self.get_backing().setter(target, expand=True)
             next_backing = set_last(_new_chunk_with_bit(zero_node(0), 0, v))
         else:
             set_last = self.get_backing().setter(target)
