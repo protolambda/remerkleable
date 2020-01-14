@@ -1,4 +1,5 @@
 # flake8:noqa F401  Ignore unused imports. Tests are a work in progress.
+import pytest
 
 from remerkleable.core import View, TypeDef, BasicView
 from remerkleable.complex import Container, Vector, List
@@ -6,6 +7,7 @@ from remerkleable.basic import boolean, bit, uint, byte, uint8, uint16, uint32, 
 from remerkleable.bitfields import Bitvector, Bitlist
 from remerkleable.byte_vector import ByteVector, Bytes1, Bytes4, Bytes8, Bytes32, Bytes48, Bytes96
 from remerkleable.core import BasicView, View, TypeDef
+from remerkleable.tree import get_depth
 
 
 def expect_value_error(fn, msg):
@@ -211,3 +213,41 @@ def test_uint_math():
     expect_value_error(lambda: uint32(42) + uint8(123), "no mixed types")
 
     assert type(uint32(1234) + 56) == uint32
+
+
+def test_container_depth():
+    class SingleField(Container):
+        foo: uint32
+    assert SingleField.tree_depth() == 0
+
+    class TwoField(Container):
+        foo: uint32
+        bar: uint64
+    assert TwoField.tree_depth() == 1
+
+    class ThreeField(Container):
+        foo: uint32
+        bar: uint64
+        quix: uint8
+    assert ThreeField.tree_depth() == 2
+
+    class FourField(Container):
+        foo: uint32
+        bar: uint64
+        quix: uint8
+        more: uint32
+    assert FourField.tree_depth() == 2
+
+    class FiveField(Container):
+        foo: uint32
+        bar: uint64
+        quix: uint8
+        more: uint32
+        fiv: uint8
+    assert FiveField.tree_depth() == 3
+
+
+@pytest.mark.parametrize("count, depth", [
+    (0, 0), (1, 0), (2, 1), (3, 2), (4, 2), (5, 3), (6, 3), (7, 3), (8, 3), (9, 4)])
+def test_tree_depth(count: int, depth: int):
+    assert get_depth(count) == depth
