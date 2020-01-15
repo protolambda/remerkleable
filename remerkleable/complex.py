@@ -1,4 +1,4 @@
-from typing import Sequence, NamedTuple, cast, List as PyList, Dict, Any, BinaryIO, Optional, TypeVar, Type, Protocol, \
+from typing import NamedTuple, cast, List as PyList, Dict, Any, BinaryIO, Optional, TypeVar, Type, Protocol, \
     runtime_checkable
 from types import GeneratorType
 from collections.abc import Sequence as ColSequence
@@ -7,7 +7,7 @@ import io
 from remerkleable.core import TypeDef, View, BasicTypeDef, BasicView, OFFSET_BYTE_LENGTH, ViewHook
 from remerkleable.basic import uint256, uint8, uint32
 from remerkleable.tree import Node, RootNode, subtree_fill_to_length, subtree_fill_to_contents,\
-    zero_node, Gindex, PairNode, to_gindex, NavigationError, get_depth, LEFT_GINDEX, RIGHT_GINDEX
+    zero_node, Gindex, PairNode, to_gindex, NavigationError, get_depth
 from remerkleable.subtree import SubtreeView
 
 V = TypeVar('V', bound=View)
