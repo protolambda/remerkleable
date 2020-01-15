@@ -734,32 +734,38 @@ class Container(ComplexView):
             return super().__getattribute__(item)
         else:
             keys = self.__class__.fields().keys()
-            return super().get(list(keys).index(item))
+            try:
+                i = list(keys).index(item)
+            except ValueError:
+                raise AttributeError(f"unknown attribute {item}")
+            return super().get(i)
 
     def __setattr__(self, key, value):
-        if key.startswith('_'):
+        if key[0] == '_':
             super().__setattr__(key, value)
         else:
             keys = self.__class__.fields().keys()
-            super().set(list(keys).index(key), value)
+            try:
+                i = list(keys).index(key)
+            except ValueError:
+                raise AttributeError(f"unknown attribute {key}")
+            super().set(i, value)
+
+    def _get_field_val_repr(self, fkey: str) -> str:
+        try:
+            return repr(getattr(self, fkey))
+        except NavigationError:
+            return "*omitted from partial*"
 
     def __repr__(self):
-        fields = self.fields()
-
-        def get_field_val_repr(fkey: str) -> str:
-            try:
-                return repr(getattr(self, fkey))
-            except NavigationError:
-                return "*omitted from partial*"
-
         return f"{self.__class__.__name__}(Container)\n" + '\n'.join(
-            ('  ' + fkey + ': ' + ftype.type_repr() + ' = ' + get_field_val_repr(fkey))
-            for fkey, ftype in zip(fields.keys, fields.types)) + '\n'
+            ('  ' + fkey + ': ' + ftype.type_repr() + ' = ' + self._get_field_val_repr(fkey))
+            for fkey, ftype in self.__class__.fields().items()) + '\n'
 
     @classmethod
     def type_repr(cls) -> str:
         return f"{cls.__name__}(Container)\n" + '\n'.join(
-            ('  ' + fkey + ': ' + ftype.type_repr()) for fkey, ftype in cls.fields()) \
+            ('  ' + fkey + ': ' + ftype.type_repr()) for fkey, ftype in cls.fields().items()) \
                + '\n'
 
     @classmethod
