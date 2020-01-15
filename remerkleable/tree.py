@@ -12,6 +12,10 @@ def get_depth(elem_count: int) -> int:
 
 Gindex = NewType("Gindex", int)
 
+ROOT_GINDEX = Gindex(1)
+LEFT_GINDEX = Gindex(2)
+RIGHT_GINDEX = Gindex(3)
+
 
 def to_gindex(index: int, depth: int):
     anchor = 1 << depth
@@ -21,7 +25,8 @@ def to_gindex(index: int, depth: int):
 
 
 def get_anchor_gindex(gindex: Gindex) -> Gindex:
-    return Gindex(1 << (gindex.bit_length() - 1))
+    # noinspection PyTypeChecker
+    return 1 << (gindex.bit_length() - 1)
 
 
 Root = NewType("Root", bytes)

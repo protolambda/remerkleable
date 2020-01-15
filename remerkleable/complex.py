@@ -6,8 +6,8 @@ from itertools import chain
 import io
 from remerkleable.core import TypeDef, View, BasicTypeDef, BasicView, OFFSET_BYTE_LENGTH, ViewHook
 from remerkleable.basic import uint256, uint8, uint32
-from remerkleable.tree import Node, subtree_fill_to_length, subtree_fill_to_contents,\
-    zero_node, Gindex, PairNode, to_gindex, NavigationError, get_depth
+from remerkleable.tree import Node, RootNode, subtree_fill_to_length, subtree_fill_to_contents,\
+    zero_node, Gindex, PairNode, to_gindex, NavigationError, get_depth, LEFT_GINDEX, RIGHT_GINDEX
 from remerkleable.subtree import SubtreeView
 
 V = TypeVar('V', bound=View)
@@ -81,7 +81,48 @@ class MonoSubtreeView(ComplexView):
         raise NotImplementedError
 
     def __iter__(self):
-        raise NotImplementedError
+        return iter(self.get(i) for i in range(self.length()))
+
+    def readonly_iter(self):
+        tree_depth = self.tree_depth()
+        length = self.length()
+        backing = self.get_backing()
+        counter = 0
+        elem_type: Type[View] = self.element_cls()
+        packed = self.is_packed()
+        elems_per_chunk = 0
+        if packed:
+            elems_per_chunk = 32 // elem_type.type_byte_length()
+
+        base_view = elem_type.default(hook=None)
+
+        def inner_iter(node: Node, depth: int):
+            nonlocal counter
+            nonlocal length
+            if counter >= length:
+                return
+            if depth == 0:
+                if packed:
+                    if isinstance(node, RootNode):
+                        for i in range(elems_per_chunk):
+                            counter += 1
+                            yield cast(BasicTypeDef, elem_type).basic_view_from_backing(node, i % elems_per_chunk)
+                            if counter >= length:
+                                break
+                    else:
+                        raise NavigationError(f"chunk {node} for basic element {counter} is not a root node")
+                else:
+                    counter += 1
+                    base_view.set_backing(node)
+                    yield base_view
+                return
+            depth -= 1
+            yield from inner_iter(node.left, depth)
+            if counter >= length:
+                return
+            yield from inner_iter(node.right, depth)
+
+        return inner_iter(backing, tree_depth)
 
     @classmethod
     def deserialize(cls: Type[V], stream: BinaryIO, scope: int) -> V:
@@ -129,7 +170,7 @@ class MonoSubtreeView(ComplexView):
             stream.write(out)
             return len(out)
         if elem_cls.is_fixed_byte_length():
-            for v in self:
+            for v in self.readonly_iter():
                 v.serialize(stream)
             return elem_cls.type_byte_length() * self.length()
         else:
@@ -147,9 +188,6 @@ class MutSeqLike(ColSequence, MonoSubtreeView):
 
     def __len__(self):
         return self.length()
-
-    def __iter__(self):
-        return iter(self.get(i) for i in range(self.length()))
 
     def __add__(self, other):
         if issubclass(self.element_cls(), uint8):
@@ -580,9 +618,7 @@ class Vector(MutSeqLike):
         return bytes_per_elem * cls.vector_length()
 
 
-class Fields(NamedTuple):
-    keys: Sequence[str]
-    types: Sequence[TypeDef]
+Fields = Dict[str, TypeDef]
 
 
 class FieldOffset(NamedTuple):
@@ -613,7 +649,7 @@ class Container(ComplexView):
         fields = cls.fields()
 
         input_nodes = []
-        for fkey, ftyp in zip(fields.keys, fields.types):
+        for fkey, ftyp in fields.items():
             fnode: Node
             if fkey in kwargs:
                 finput = kwargs.pop(fkey)
@@ -632,11 +668,11 @@ class Container(ComplexView):
         annot = cls.__annotations__
         if '_empty_annotations' in annot.keys():
             raise Exception("detected fallback empty annotation, cannot have container type without fields")
-        return Fields(keys=list(annot.keys()), types=[v for v in annot.values()])
+        return annot
 
     @classmethod
     def is_fixed_byte_length(cls) -> bool:
-        return all(f.is_fixed_byte_length() for f in cls.fields().types)
+        return all(f.is_fixed_byte_length() for f in cls.fields().values())
 
     @classmethod
     def type_byte_length(cls) -> int:
@@ -648,7 +684,7 @@ class Container(ComplexView):
     @classmethod
     def min_byte_length(cls) -> int:
         total = 0
-        for ftyp in cls.fields().types:
+        for ftyp in cls.fields().values():
             if not ftyp.is_fixed_byte_length():
                 total += OFFSET_BYTE_LENGTH
             total += ftyp.min_byte_length()
@@ -657,7 +693,7 @@ class Container(ComplexView):
     @classmethod
     def max_byte_length(cls) -> int:
         total = 0
-        for ftyp in cls.fields().types:
+        for ftyp in cls.fields().values():
             if not ftyp.is_fixed_byte_length():
                 total += OFFSET_BYTE_LENGTH
             total += ftyp.max_byte_length()
@@ -669,15 +705,15 @@ class Container(ComplexView):
 
     @classmethod
     def tree_depth(cls) -> int:
-        return get_depth(len(cls.fields().keys))
+        return get_depth(len(cls.fields()))
 
     @classmethod
     def item_elem_cls(cls, i: int) -> TypeDef:
-        return cls.fields().types[i]
+        return list(cls.fields().values())[i]
 
     @classmethod
     def default_node(cls) -> Node:
-        return subtree_fill_to_contents([field.default_node() for field in cls.fields().types], cls.tree_depth())
+        return subtree_fill_to_contents([field.default_node() for field in cls.fields().values()], cls.tree_depth())
 
     def value_byte_length(self) -> int:
         if self.__class__.is_fixed_byte_length():
@@ -685,7 +721,7 @@ class Container(ComplexView):
         else:
             total = 0
             fields = self.fields()
-            for fkey, ftyp in zip(fields.keys, fields.types):
+            for fkey, ftyp in fields.items():
                 if ftyp.is_fixed_byte_length():
                     total += ftyp.type_byte_length()
                 else:
@@ -693,25 +729,19 @@ class Container(ComplexView):
                     total += cast(View, getattr(self, fkey)).value_byte_length()
             return total
 
-    def __getattribute__(self, item):
-        if item.startswith('_'):
+    def __getattr__(self, item):
+        if item[0] == '_':
             return super().__getattribute__(item)
         else:
-            keys = self.__class__.fields().keys
-            if item in keys:
-                return super().get(keys.index(item))
-            else:
-                return super().__getattribute__(item)
+            keys = self.__class__.fields().keys()
+            return super().get(list(keys).index(item))
 
     def __setattr__(self, key, value):
         if key.startswith('_'):
             super().__setattr__(key, value)
         else:
-            keys = self.__class__.fields().keys
-            if key in keys:
-                super().set(keys.index(key), value)
-            else:
-                raise AttributeError(f"unknown field {key}")
+            keys = self.__class__.fields().keys()
+            super().set(list(keys).index(key), value)
 
     def __repr__(self):
         fields = self.fields()
@@ -729,7 +759,7 @@ class Container(ComplexView):
     @classmethod
     def type_repr(cls) -> str:
         return f"{cls.__name__}(Container)\n" + '\n'.join(
-            ('  ' + fkey + ': ' + ftype.type_repr()) for fkey, ftype in zip(cls.fields().keys, cls.fields().types)) \
+            ('  ' + fkey + ': ' + ftype.type_repr()) for fkey, ftype in cls.fields()) \
                + '\n'
 
     @classmethod
@@ -744,13 +774,12 @@ class Container(ComplexView):
         fields = cls.fields()
         field_values: Dict[str, View]
         if cls.is_fixed_byte_length():
-            field_values = {fkey: ftyp.deserialize(stream, ftyp.type_byte_length())
-                            for fkey, ftyp in zip(fields.keys, fields.types)}
+            field_values = {fkey: ftyp.deserialize(stream, ftyp.type_byte_length()) for fkey, ftyp in fields.items()}
         else:
             field_values = {}
             dyn_fields: PyList[FieldOffset] = []
             fixed_size = 0
-            for fkey, ftyp in zip(fields.keys, fields.types):
+            for fkey, ftyp in fields.items():
                 if ftyp.is_fixed_byte_length():
                     fsize = ftyp.type_byte_length()
                     field_values[fkey] = ftyp.deserialize(stream, fsize)
@@ -778,8 +807,8 @@ class Container(ComplexView):
         is_fixed_size = self.is_fixed_byte_length()
         temp_dyn_stream = None if is_fixed_size else io.BytesIO()
         written = sum(map((lambda x: x.type_byte_length() if x.is_fixed_byte_length() else OFFSET_BYTE_LENGTH),
-                          fields.types))
-        for fkey, ftyp in zip(fields.keys, fields.types):
+                          fields.values()))
+        for fkey, ftyp in fields.items():
             v: View = getattr(self, fkey)
             if ftyp.is_fixed_byte_length():
                 v.serialize(stream)
