@@ -6,7 +6,7 @@ with open("README.md", "r") as fh:
 setup(
     name="remerkleable",
     description="Typed mutable SSZ views over cached and immutable binary merkle trees",
-    version="0.1.1",
+    version="0.1.2",
     long_description=long_description,
     long_description_content_type="text/markdown",
     author="protolambda",
