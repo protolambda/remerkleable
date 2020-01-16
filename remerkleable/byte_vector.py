@@ -14,9 +14,11 @@ class ByteVector(bytes, FixedByteLengthViewHelper, View):
             return super().__new__(cls, b"\x00" * byte_len, **kwargs)
         elif len(args) == 1:
             val = args[0]
-            if isinstance(args[0], (GeneratorType, list, tuple)):
-                val = list(args[0])
-            if isinstance(val, str):
+            if isinstance(val, bytes):
+                data = val
+            elif isinstance(val, (GeneratorType, list, tuple)):
+                data = bytes(args[0])
+            elif isinstance(val, str):
                 if val[:2] == '0x':
                     val = val[2:]
                 data = bytes.fromhex(val)

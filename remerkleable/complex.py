@@ -664,6 +664,10 @@ class Container(ComplexView):
         return super().__new__(cls, backing=backing, hook=hook, **kwargs)
 
     @classmethod
+    def coerce_view(cls: Type[V], v: Any) -> V:
+        return cls({fkey: getattr(v, fkey) for fkey in cls.fields().keys()})
+
+    @classmethod
     def fields(cls) -> Fields:
         annot = cls.__annotations__
         if '_empty_annotations' in annot.keys():

@@ -36,7 +36,7 @@ MerkleFn = NewType("MerkleFn", Callable[[Root, Root], Root])
 ZERO_ROOT: Root = Root(b'\x00' * 32)
 
 
-def merkle_hash(left: Root, right: Root):
+def merkle_hash(left: Root, right: Root) -> Root:
     return sha256(left + right).digest()
 
 
@@ -108,10 +108,11 @@ class PairNode(Node):
             return self.right
         anchor = get_anchor_gindex(target)
         pivot = anchor >> 1
-        if target < (target | pivot):
-            return self.left.getter(Gindex(target ^ anchor | pivot))
+        unanchor = target ^ anchor
+        if unanchor < pivot:
+            return self.left.getter(Gindex(unanchor | pivot))
         else:
-            return self.right.getter(Gindex(target ^ anchor | pivot))
+            return self.right.getter(Gindex(unanchor))
 
     def setter(self, target: Gindex, expand: bool = False) -> Link:
         if target < 1:
@@ -124,11 +125,12 @@ class PairNode(Node):
             return self.rebind_right
         anchor = get_anchor_gindex(target)
         pivot = anchor >> 1
-        if target < (target | pivot):
-            inner = self.left.setter(Gindex(target ^ anchor | pivot), expand=expand)
+        unanchor = target ^ anchor
+        if unanchor < pivot:
+            inner = self.left.setter(Gindex(unanchor | pivot), expand=expand)
             return compose(inner, self.rebind_left)
         else:
-            inner = self.right.setter(Gindex(target ^ anchor | pivot), expand=expand)
+            inner = self.right.setter(Gindex(unanchor), expand=expand)
             return compose(inner, self.rebind_right)
 
     def rebind_left(self, v: Node) -> "PairNode":
