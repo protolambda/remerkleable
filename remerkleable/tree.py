@@ -55,9 +55,9 @@ class Node(Protocol):
     def summarize_into(self, target: Gindex) -> SummaryLink:
         setter = self.setter(target)
         getter = self.getter(target)
-        return lambda: setter(RootNode(getter.merkle_root(merkle_hash)))
+        return lambda: setter(RootNode(getter.merkle_root()))
 
-    def merkle_root(self, h: MerkleFn) -> Root:
+    def merkle_root(self) -> Root:
         ...
 
 
@@ -139,10 +139,10 @@ class PairNode(Node):
     def rebind_right(self, v: Node) -> "PairNode":
         return PairNode(self.left, v)
 
-    def merkle_root(self, h: MerkleFn) -> Root:
+    def merkle_root(self) -> Root:
         if self.root is not None:
             return self.root
-        self.root = h(self.left.merkle_root(h), self.right.merkle_root(h))
+        self.root = merkle_hash(self.left.merkle_root(), self.right.merkle_root())
         return self.root
 
     def __repr__(self) -> str:
@@ -225,7 +225,7 @@ class RootNode(Node):
         else:
             raise NavigationError
 
-    def merkle_root(self, h: MerkleFn) -> Root:
+    def merkle_root(self) -> Root:
         return self.root
 
     def __repr__(self):

@@ -1,5 +1,5 @@
 from typing import Callable, Optional, Any, cast, List as PyList, BinaryIO, TypeVar, Type, Protocol, runtime_checkable
-from remerkleable.tree import Node, Root, RootNode, zero_node, merkle_hash
+from remerkleable.tree import Node, Root, RootNode, zero_node
 from itertools import zip_longest
 from typing import Iterable, Tuple
 
@@ -94,7 +94,7 @@ class View(TypeDef):
         return len(out)
 
     def hash_tree_root(self) -> Root:
-        return self.get_backing().merkle_root(merkle_hash)
+        return self.get_backing().merkle_root()
 
     def __eq__(self, other):
         # TODO: should we check types here?

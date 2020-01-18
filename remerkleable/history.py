@@ -30,7 +30,7 @@ def get_target_history(history: History, target: Gindex) -> History:
 
     for key, node in history:
         child_node = node.getter(sub_index)
-        if child_node == last:
+        if last is None or child_node.merkle_root() == last:
             continue
         out.append((key, child_node))
         last = child_node
