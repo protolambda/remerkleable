@@ -1,8 +1,9 @@
-from remerkleable.tree import Node, RootNode, Root, subtree_fill_to_contents, get_depth, to_gindex, must_leaf, \
-    subtree_fill_to_length
-from remerkleable.core import View, ViewHook, zero_node, FixedByteLengthViewHelper, pack_bytes_to_chunks
 from typing import Optional, Any, TypeVar, Type
 from types import GeneratorType
+from remerkleable.tree import Node, RootNode, Root, subtree_fill_to_contents, get_depth, to_gindex, must_leaf, \
+    subtree_fill_to_length, Gindex
+from remerkleable.core import View, ViewHook, zero_node, FixedByteLengthViewHelper, pack_bytes_to_chunks
+from remerkleable.basic import byte
 
 V = TypeVar('V', bound=View)
 
@@ -99,6 +100,24 @@ class ByteVector(bytes, FixedByteLengthViewHelper, View):
 
     def encode_bytes(self) -> bytes:
         return self
+
+    @classmethod
+    def navigate_type(cls, key: Any) -> Type[View]:
+        if key < 0 or key > cls.type_byte_length():
+            raise KeyError
+        return byte
+
+    @classmethod
+    def key_to_static_gindex(cls, key: Any) -> Gindex:
+        depth = cls.tree_depth()
+        byte_len = cls.type_byte_length()
+        if key < 0 or key >= byte_len:
+            raise KeyError
+        chunk_i = key // 32
+        return to_gindex(chunk_i, depth)
+
+    def navigate_view(self, key: Any) -> View:
+        return byte(self.__getitem__(key))
 
 
 # Define common special Byte vector view types, these are bytes-like:

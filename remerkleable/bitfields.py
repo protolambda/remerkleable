@@ -104,6 +104,9 @@ class BitsView(BackedView, ColSequence):
         stream.seek(0)
         return cls.deserialize(stream, len(bytez))
 
+    def navigate_view(self, key: Any) -> View:
+        return boolean(self.__getitem__(key))
+
 
 class Bitlist(BitsView):
     def __new__(cls, *args, **kwargs):
@@ -318,6 +321,22 @@ class Bitlist(BitsView):
             stream.write(b"\x01")  # empty bitlist still has a delimiting bit
         return (bitlen + 7 + 1) // 8  # includes delimit bit in length computation
 
+    @classmethod
+    def navigate_type(cls, key: Any) -> Type[View]:
+        bit_limit = cls.limit()
+        if key < 0 or key >= bit_limit:
+            raise KeyError
+        return boolean
+
+    @classmethod
+    def key_to_static_gindex(cls, key: Any) -> Gindex:
+        depth = cls.tree_depth()
+        bit_limit = cls.limit()
+        if key < 0 or key >= bit_limit:
+            raise KeyError
+        chunk_i = key // 256
+        return to_gindex(chunk_i, depth)
+
 
 class Bitvector(BitsView, FixedByteLengthViewHelper):
     def __new__(cls, *args, **kwargs):
@@ -422,3 +441,19 @@ class Bitvector(BitsView, FixedByteLengthViewHelper):
             last_chunk_bytes_count = byte_len - (full_chunks_count * 32)
             stream.write(last_chunk.root[:last_chunk_bytes_count])
         return byte_len
+
+    @classmethod
+    def navigate_type(cls, key: Any) -> Type[View]:
+        bit_limit = cls.vector_length()
+        if key < 0 or key >= bit_limit:
+            raise KeyError
+        return boolean
+
+    @classmethod
+    def key_to_static_gindex(cls, key: Any) -> Gindex:
+        depth = cls.tree_depth()
+        bit_len = cls.vector_length()
+        if key < 0 or key >= bit_len:
+            raise KeyError
+        chunk_i = key // 256
+        return to_gindex(chunk_i, depth)

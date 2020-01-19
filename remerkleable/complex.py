@@ -4,7 +4,7 @@ from types import GeneratorType
 from collections.abc import Sequence as ColSequence
 from itertools import chain
 import io
-from remerkleable.core import TypeDef, View, BasicTypeDef, BasicView, OFFSET_BYTE_LENGTH, ViewHook
+from remerkleable.core import View, BasicTypeDef, BasicView, OFFSET_BYTE_LENGTH, ViewHook
 from remerkleable.basic import uint256, uint8, uint32
 from remerkleable.tree import Node, RootNode, subtree_fill_to_length, subtree_fill_to_contents,\
     zero_node, Gindex, PairNode, to_gindex, NavigationError, get_depth
@@ -36,7 +36,7 @@ class ComplexView(SubtreeView):
         return cls.deserialize(stream, len(bytez))
 
 
-class MonoSubtreeView(ComplexView):
+class MonoSubtreeView(ColSequence, ComplexView):
 
     def length(self) -> int:
         raise NotImplementedError
@@ -183,8 +183,27 @@ class MonoSubtreeView(ComplexView):
             stream.write(temp_dyn_stream.read(offset))
             return offset
 
+    @classmethod
+    def navigate_type(cls, key: Any) -> Type[View]:
+        if key < 0:
+            raise KeyError
+        return cls.element_cls()
 
-class MutSeqLike(ColSequence, MonoSubtreeView):
+    @classmethod
+    def key_to_static_gindex(cls, key: Any) -> Gindex:
+        if key < 0:
+            raise KeyError
+
+        if cls.is_packed():
+            elems_per_chunk = 32 // cls.element_cls().type_byte_length()
+            chunk_i = key // elems_per_chunk
+        else:
+            chunk_i = key
+
+        return to_gindex(chunk_i, cls.tree_depth())
+
+    def navigate_view(self, key: Any) -> View:
+        return self.__getitem__(key)
 
     def __len__(self):
         return self.length()
@@ -196,19 +215,17 @@ class MutSeqLike(ColSequence, MonoSubtreeView):
             return list(chain(self, other))
 
     def __getitem__(self, k):
-        length = self.length()
         if isinstance(k, slice):
             start = 0 if k.start is None else k.start
-            end = length if k.stop is None else k.stop
+            end = self.length() if k.stop is None else k.stop
             return [self.get(i) for i in range(start, end)]
         else:
             return self.get(k)
 
     def __setitem__(self, k, v):
-        length = self.length()
         if type(k) == slice:
             i = 0 if k.start is None else k.start
-            end = length if k.stop is None else k.stop
+            end = self.length() if k.stop is None else k.stop
             for item in v:
                 self.set(i, item)
                 i += 1
@@ -218,7 +235,7 @@ class MutSeqLike(ColSequence, MonoSubtreeView):
             self.set(k, v)
 
 
-class List(MutSeqLike):
+class List(MonoSubtreeView):
     def __new__(cls, *args, backing: Optional[Node] = None, hook: Optional[ViewHook] = None, **kwargs):
         if backing is not None:
             if len(args) != 0:
@@ -437,6 +454,18 @@ class List(MutSeqLike):
         return 0 <= count <= cls.limit()
 
     @classmethod
+    def navigate_type(cls, key: Any) -> Type[View]:
+        if key >= cls.limit():
+            raise KeyError
+        return super().navigate_type(key)
+
+    @classmethod
+    def key_to_static_gindex(cls, key: Any) -> Gindex:
+        if key >= cls.limit():
+            raise KeyError
+        return super().key_to_static_gindex(key)
+
+    @classmethod
     def default_node(cls) -> Node:
         return PairNode(zero_node(cls.contents_depth()), zero_node(0))  # mix-in 0 as list length
 
@@ -457,7 +486,7 @@ class List(MutSeqLike):
         return bytes_per_elem * cls.limit()
 
 
-class Vector(MutSeqLike):
+class Vector(MonoSubtreeView):
     def __new__(cls, *args, backing: Optional[Node] = None, hook: Optional[ViewHook] = None, **kwargs):
         if backing is not None:
             if len(args) != 0:
@@ -513,7 +542,7 @@ class Vector(MutSeqLike):
                 return tree_depth
 
             @classmethod
-            def element_cls(cls) -> TypeDef:
+            def element_cls(cls) -> Type[View]:
                 return element_view_cls
 
             @classmethod
@@ -588,6 +617,18 @@ class Vector(MutSeqLike):
         return count == cls.vector_length()
 
     @classmethod
+    def navigate_type(cls, key: Any) -> Type[View]:
+        if key >= cls.vector_length():
+            raise KeyError
+        return super().navigate_type(key)
+
+    @classmethod
+    def key_to_static_gindex(cls, key: Any) -> Gindex:
+        if key >= cls.vector_length():
+            raise KeyError
+        return super().key_to_static_gindex(key)
+
+    @classmethod
     def default_node(cls) -> Node:
         elem_type: Type[View] = cls.element_cls()
         length = cls.to_chunk_length(cls.vector_length())
@@ -618,12 +659,12 @@ class Vector(MutSeqLike):
         return bytes_per_elem * cls.vector_length()
 
 
-Fields = Dict[str, TypeDef]
+Fields = Dict[str, Type[View]]
 
 
 class FieldOffset(NamedTuple):
     key: str
-    typ: TypeDef
+    typ: Type[View]
     offset: int
 
 
@@ -656,9 +697,9 @@ class Container(ComplexView):
                 if isinstance(finput, View):
                     fnode = finput.get_backing()
                 else:
-                    fnode = cast(TypeDef, ftyp).coerce_view(finput).get_backing()
+                    fnode = ftyp.coerce_view(finput).get_backing()
             else:
-                fnode = cast(TypeDef, ftyp).default_node()
+                fnode = ftyp.default_node()
             input_nodes.append(fnode)
         backing = subtree_fill_to_contents(input_nodes, cls.tree_depth())
         return super().__new__(cls, backing=backing, hook=hook, **kwargs)
@@ -712,7 +753,7 @@ class Container(ComplexView):
         return get_depth(len(cls.fields()))
 
     @classmethod
-    def item_elem_cls(cls, i: int) -> TypeDef:
+    def item_elem_cls(cls, i: int) -> Type[View]:
         return list(cls.fields().values())[i]
 
     @classmethod
@@ -829,3 +870,19 @@ class Container(ComplexView):
             temp_dyn_stream.seek(0)
             stream.write(temp_dyn_stream.read(written))
         return written
+
+    @classmethod
+    def key_to_static_gindex(cls, key: Any) -> Gindex:
+        fields = cls.fields()
+        try:
+            field_index = list(fields.keys()).index(key)
+        except ValueError:  # list.index raises ValueError if the element (a key here) is missing
+            raise KeyError
+        return to_gindex(field_index, cls.tree_depth())
+
+    @classmethod
+    def navigate_type(cls, key: Any) -> Type[View]:
+        return cls.fields()[key]
+
+    def navigate_view(self, key: Any) -> View:
+        return self.__getattr__(key)

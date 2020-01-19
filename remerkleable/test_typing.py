@@ -251,3 +251,37 @@ def test_container_depth():
     (0, 0), (1, 0), (2, 1), (3, 2), (4, 2), (5, 3), (6, 3), (7, 3), (8, 3), (9, 4)])
 def test_tree_depth(count: int, depth: int):
     assert get_depth(count) == depth
+
+
+def test_paths():
+    class FourField(Container):
+        foo: uint32
+        bar: uint64
+        quix: uint8
+        more: uint32
+    assert (FourField / 'foo').navigate_type() == uint32
+    assert (FourField / 'bar').navigate_type() == uint64
+    assert (FourField / 'foo').gindex() == 0b100
+    assert (FourField / 'bar').gindex() == 0b101
+
+    class Wrapper(Container):
+        a: uint32
+        b: FourField
+    assert (Wrapper / 'a').navigate_type() == uint32
+    assert (Wrapper / 'b').navigate_type() == FourField
+    assert (Wrapper / 'b' / 'quix').navigate_type() == uint8
+
+    assert (Wrapper / 'a').gindex() == 0b10
+    assert (Wrapper / 'b' / 'more').gindex() == 0b1111
+
+    assert ((Wrapper / 'b') / (FourField / 'quix')).gindex() == ((Wrapper / 'b') / 'quix').gindex()
+
+    w = Wrapper(b=FourField(quix=42))
+    assert (Wrapper / 'b' / 'quix').navigate_view(w) == 42
+
+    assert (List[uint32, 123] / 0).navigate_type() == uint32
+    try:
+        (List[uint32, 123] / 123).navigate_type()
+        assert False
+    except KeyError:
+        pass

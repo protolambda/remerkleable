@@ -1,4 +1,4 @@
-from typing import Callable, NewType, List, Optional, Protocol, TypeVar
+from typing import Callable, NewType, List, Optional, Protocol, TypeVar, Iterable
 from hashlib import sha256
 
 
@@ -27,6 +27,15 @@ def to_gindex(index: int, depth: int):
 def get_anchor_gindex(gindex: Gindex) -> Gindex:
     # noinspection PyTypeChecker
     return 1 << (gindex.bit_length() - 1)
+
+
+def concat_gindices(steps: Iterable[Gindex]) -> Gindex:
+    out = 1
+    for step in steps:
+        step_bit_len = step.bit_length() - 1
+        out <<= step_bit_len
+        out |= step ^ (1 << step_bit_len)
+    return Gindex(out)
 
 
 Root = NewType("Root", bytes)

@@ -1,5 +1,9 @@
 from typing import Callable, Optional, Any, cast, List as PyList, BinaryIO, TypeVar, Type, Protocol, runtime_checkable
-from remerkleable.tree import Node, Root, RootNode, zero_node
+
+# noinspection PyUnresolvedReferences
+from typing import _ProtocolMeta
+
+from remerkleable.tree import Node, Root, RootNode, zero_node, concat_gindices, Gindex
 from itertools import zip_longest
 from typing import Iterable, Tuple
 
@@ -9,8 +13,13 @@ OFFSET_BYTE_LENGTH = 4
 V = TypeVar('V', bound="View")
 
 
+class TypeDefMeta(_ProtocolMeta):
+    def __truediv__(self, other) -> "Path":
+        return Path.from_raw_path(anchor=cast(Type[View], self), path=[other])
+
+
 @runtime_checkable
-class TypeDef(Protocol):
+class TypeDef(Protocol, metaclass=TypeDefMeta):
     @classmethod
     def coerce_view(cls: Type[V], v: Any) -> V:
         ...
@@ -55,6 +64,66 @@ class TypeDef(Protocol):
     def type_repr(cls) -> str:
         ...
 
+    @classmethod
+    def navigate_type(cls, key: Any) -> Type["View"]:
+        raise Exception(f"cannot type-navigate into a {cls.type_repr()}, key: '{key}'")
+
+    @classmethod
+    def key_to_static_gindex(cls, key: Any) -> Gindex:
+        raise Exception(f"cannot get static gindex into type {cls.type_repr()}, key: '{key}'")
+
+
+class Path(object):
+    anchor: Type["View"]
+    path: PyList[Tuple[Any, Type["View"]]]  # (key, type) tuples.
+
+    def __init__(self, anchor: Type["View"], path: Optional[PyList[Tuple[Any, Type["View"]]]] = None):
+        self.anchor = anchor
+        if path is None:
+            self.path = []
+        else:
+            self.path = path
+
+    @staticmethod
+    def from_raw_path(anchor: Type["View"], path: PyList[Any]) -> "Path":
+        parsed_path = []
+        t = anchor
+        for step in path:
+            t = t.navigate_type(step)
+            parsed_path.append((step, t))
+        return Path(anchor=anchor, path=parsed_path)
+
+    def __truediv__(self, other) -> "Path":
+        if isinstance(other, Path):
+            return Path(anchor=self.anchor, path=self.path + other.path)
+        else:
+            last = self.anchor if len(self.path) == 0 else self.path[-1][1]
+            return Path(anchor=self.anchor, path=self.path + [(other, last.navigate_type(other))])
+
+    def gindex(self, view: Optional["View"] = None) -> Gindex:
+        step_gindices = []
+        if view is None:
+            type_end: Type[View] = self.anchor
+            for step, typ in self.path:
+                gindex = type_end.key_to_static_gindex(step)
+                step_gindices.append(gindex)
+                type_end = typ
+        else:
+            view_end: View = view
+            for step, _ in self.path:
+                gindex = view_end.key_to_dynamic_gindex(step)
+                step_gindices.append(gindex)
+                view_end = view_end.navigate_view(step)
+        return concat_gindices(step_gindices)
+
+    def navigate_type(self) -> Type["View"]:
+        return self.path[-1][1]
+
+    def navigate_view(self, v: "View") -> "View":
+        for step, _ in self.path:
+            v = v.navigate_view(step)
+        return v
+
 
 HV = TypeVar('HV', bound="View")
 ViewHook = Callable[[HV], None]
@@ -92,6 +161,12 @@ class View(TypeDef):
         out = self.encode_bytes()
         stream.write(out)
         return len(out)
+
+    def navigate_view(self, key: Any) -> "View":
+        raise Exception(f"cannot view-navigate into {self}, key: '{key}'")
+
+    def key_to_dynamic_gindex(self, key: Any) -> Gindex:
+        return self.__class__.key_to_static_gindex(key)
 
     def hash_tree_root(self) -> Root:
         return self.get_backing().merkle_root()
