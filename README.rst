@@ -2,7 +2,7 @@
    :width: 100 px
 
 ``remerkleable``
--------------
+-----------------
 
 .. image:: https://img.shields.io/pypi/l/remerkleable.svg
     :target: https://pypi.python.org/pypi/remerkleable
