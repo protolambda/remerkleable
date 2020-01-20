@@ -4,6 +4,12 @@ build-dist:
 upload-dist:
 	python3 -m twine upload dist/*
 
+install:
+	python3 -m venv venv && . venv/bin/activate; pip3 install .
+
+lint:
+	cd remerkleable && flake8 . --count --exit-zero --max-complexity=15 --max-line-length=127 --statistics
+
 clean:
 	rm -rf build dist .pytest_cache *.egg-info
 
