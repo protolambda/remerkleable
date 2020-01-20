@@ -1,3 +1,2 @@
 include README.rst
-include docs/_static/logo.svg
 include LICENSE

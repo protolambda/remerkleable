@@ -1,6 +1,13 @@
 Changelog
 ==========
 
+v0.1.4
+-------
+
+- Fix README rst quirk
+- Be explicit about RST description format
+- Include logo SVG in description through github link
+
 v0.1.3
 -------
 
