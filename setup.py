@@ -1,14 +1,13 @@
 from setuptools import setup, find_packages
 
-with open("README.md", "r") as fh:
-    long_description = fh.read()
+with open("README.rst", "rt", encoding="utf8") as f:
+    readme = f.read()
 
 setup(
     name="remerkleable",
     description="Typed mutable SSZ views over cached and immutable binary merkle trees",
     version="0.1.2",
-    long_description=long_description,
-    long_description_content_type="text/markdown",
+    long_description=readme,
     author="protolambda",
     author_email="proto+pip@protolambda.com",
     url="https://github.com/protolambda/remerkleable",
@@ -19,7 +18,8 @@ setup(
     tests_require=[],
     extras_require={
         "testing": ["pytest"],
-        "linting": ["flake8"]
+        "linting": ["flake8"],
+        "docs": ["sphinx", "sphinx-autodoc-typehints", "pallets_sphinx_themes", "sphinx_issues"]
     },
     install_requires=[],
     include_package_data=True,
