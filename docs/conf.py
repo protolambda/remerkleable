@@ -62,7 +62,7 @@ html_context = {
     ]
 }
 html_sidebars = {
-    "index": ["project.html", "localtoc.html", "searchbox.html"],
+    "index": ["project.html", "searchbox.html"],
     "**": ["localtoc.html", "relations.html", "searchbox.html"],
 }
 singlehtml_sidebars = {"index": ["project.html", "localtoc.html"]}
@@ -74,13 +74,6 @@ html_show_sourcelink = False
 
 # -- Theme configuration -----------------------------------------------------
 
-html_theme_options = {
-    'logo': 'logo.svg',
-    'github_user': 'protolambda',
-    'github_repo': 'remerkleable',
-    'github_banner': True,
-    'badge_branch': 'master',
-    'show_powered_by': False,
-}
+html_theme_options = {}
 
 # -- Extension configuration -------------------------------------------------

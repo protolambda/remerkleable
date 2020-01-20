@@ -1,6 +1,5 @@
 .. image:: ./docs/_static/logo.svg
    :width: 100 px
-   :align: center
 
 ``remerkleable``
 -------------
@@ -73,4 +72,3 @@ License
 --------
 
 MIT, see `LICENSE <./LICENSE>`_ file.
-~

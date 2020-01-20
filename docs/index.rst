@@ -1,8 +1,3 @@
-.. remerkleable documentation master file, created by
-   sphinx-quickstart on Sun Jan 19 21:56:36 2020.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
-
 Remerkleable
 ========================================
 
@@ -30,13 +25,14 @@ Remerkleable
    examples
    api
    changelog
+   Modules <modules>
    license
 
 
 
 
 Search the documentation
----------------------
+-------------------------
 
 * :ref:`genindex`
 * :ref:`modindex`
