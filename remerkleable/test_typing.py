@@ -163,6 +163,14 @@ def test_list():
     except ValueError:
         pass
 
+    for i in range(128):
+        foo.pop()
+        assert len(foo) == 128 - 1 - i
+    for i in range(128):
+        foo.append(uint32(i))
+        assert len(foo) == i + 1
+        assert foo[i] == i
+
     try:
         foo[3] = uint64(2 ** 32 - 1)  # within bounds, wrong type
         assert False

@@ -1,4 +1,4 @@
-from typing import Callable, NewType, List, Optional, Protocol, TypeVar, Iterable, Iterator
+from typing import Callable, NewType, List, Optional, Protocol, TypeVar, Iterable, Iterator, Tuple
 from hashlib import sha256
 
 
@@ -29,14 +29,19 @@ def get_anchor_gindex(gindex: Gindex) -> Gindex:
     return 1 << (gindex.bit_length() - 1)
 
 
-def gindex_bit_iter(gindex: Gindex) -> Iterator[bool]:
+def gindex_bit_iter(gindex: Gindex) -> Tuple[Iterator[bool], int]:
+    if gindex < 1:
+        raise Exception(f"invalid gindex: {gindex}")
     bit_len = gindex.bit_length()
-    if bit_len <= 1:
-        return
-    shift_v = 1 << (bit_len - 2)
-    while shift_v != 0:
-        yield (gindex & shift_v) != 0
-        shift_v >>= 1
+
+    def iter_bits():
+        if bit_len <= 1:
+            return
+        shift_v = 1 << (bit_len - 2)
+        while shift_v != 0:
+            yield (gindex & shift_v) != 0
+            shift_v >>= 1
+    return iter_bits(), bit_len - 1
 
 
 def concat_gindices(steps: Iterable[Gindex]) -> Gindex:
@@ -73,6 +78,9 @@ class Node(Protocol):
 
     def getter(self, target: Gindex) -> "Node":
         raise NavigationError
+
+    def is_root(self) -> bool:
+        return False
 
     def rebind_left(self, v: "Node") -> "Node":
         raise NavigationError
@@ -140,12 +148,16 @@ class PairNode(Node):
         if target == 1:
             return self
         node = self
-        for bit in gindex_bit_iter(target):
+        bit_iter, _ = gindex_bit_iter(target)
+        for bit in bit_iter:
             if bit:
                 node = node.get_right()
             else:
                 node = node.get_left()
         return node
+
+    def is_root(self) -> bool:
+        return False
 
     def rebind_left(self, v: Node) -> "Node":
         return PairNode(v, self.right)
@@ -162,17 +174,25 @@ class PairNode(Node):
             return self.rebind_left
         if target == 3:
             return self.rebind_right
-        bit_iter = gindex_bit_iter(target)
+        bit_iter, depth = gindex_bit_iter(target)
         first = bit_iter.__next__()
         link = self.rebind_right if first else self.rebind_left
-        node = self.get_right() if first else self.get_left()
+        prev_bit = first
+        node = self
         for bit in bit_iter:
-            if bit:
-                link = compose(node.rebind_right, link)
+            if prev_bit:
                 node = node.get_right()
             else:
-                link = compose(node.rebind_left, link)
                 node = node.get_left()
+            depth -= 1
+            if node.is_root():
+                child = zero_node(depth - 1)
+                node = PairNode(child, child)
+            if bit:
+                link = compose(node.rebind_right, link)
+            else:
+                link = compose(node.rebind_left, link)
+            prev_bit = bit
         return link
 
     def merkle_root(self) -> Root:
@@ -249,6 +269,9 @@ class RootNode(Node):
         if target != 1:
             raise NavigationError
         return self
+
+    def is_root(self) -> bool:
+        return True
 
     def setter(self, target: Gindex, expand: bool = False) -> Link:
         if target < 1:
