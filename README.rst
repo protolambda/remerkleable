@@ -1,4 +1,4 @@
-.. image:: https://raw.githubusercontent.com/protolambda/remerkleable/master/docs/_static/logo.svg
+.. image:: https://raw.githubusercontent.com/protolambda/remerkleable/master/docs/_static/logo.png
    :width: 100 px
 
 ``remerkleable``
