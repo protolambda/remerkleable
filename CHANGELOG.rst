@@ -1,6 +1,11 @@
 Changelog
 ==========
 
+v0.1.6
+-------
+
+- PyPi does not like SVG, change logo link to PNG
+
 v0.1.5
 -------
 - Fix PyPi upload
