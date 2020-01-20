@@ -8,6 +8,7 @@ setup(
     description="Typed mutable SSZ views over cached and immutable binary merkle trees",
     version="0.1.3",
     long_description=readme,
+    long_description_content_type="text/x-rst",
     author="protolambda",
     author_email="proto+pip@protolambda.com",
     url="https://github.com/protolambda/remerkleable",
