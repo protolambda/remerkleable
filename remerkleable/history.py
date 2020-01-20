@@ -1,4 +1,4 @@
-from remerkleable.tree import Gindex, Node, get_anchor_gindex, LEFT_GINDEX, RIGHT_GINDEX, ROOT_GINDEX
+from remerkleable.tree import Gindex, Node, get_anchor_gindex, ROOT_GINDEX
 from typing import List as Iterable, Tuple, TypeVar
 
 K = TypeVar('K')
@@ -18,24 +18,28 @@ def get_target_history(history: History, target: Gindex) -> History:
     anchor = get_anchor_gindex(target)
     pivot = anchor >> 1
     unanchor = target ^ anchor
-    sub_index = LEFT_GINDEX if unanchor < pivot else RIGHT_GINDEX
+    direction_left = unanchor < pivot
 
     # Don't go deeper than the anchor. In this case we just return the (duplicate reduced) history.
-    if anchor == ROOT_GINDEX:
-        pivot = ROOT_GINDEX
-        sub_index = anchor
+    is_anchor = (anchor == ROOT_GINDEX)
 
     out = []
     last = None
 
     for key, node in history:
-        child_node = node.getter(sub_index)
+        if is_anchor:
+            child_node = node
+        else:
+            if direction_left:
+                child_node = node.get_left()
+            else:
+                child_node = node.get_right()
         if last is None or child_node.merkle_root() == last:
             continue
         out.append((key, child_node))
         last = child_node
 
-    if pivot != ROOT_GINDEX:
+    if not is_anchor:
         out = get_target_history(out, Gindex(pivot | unanchor))
 
     return out

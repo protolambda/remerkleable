@@ -1,4 +1,4 @@
-from typing import Callable, NewType, List, Optional, Protocol, TypeVar, Iterable
+from typing import Callable, NewType, List, Optional, Protocol, TypeVar, Iterable, Iterator
 from hashlib import sha256
 
 
@@ -29,6 +29,16 @@ def get_anchor_gindex(gindex: Gindex) -> Gindex:
     return 1 << (gindex.bit_length() - 1)
 
 
+def gindex_bit_iter(gindex: Gindex) -> Iterator[bool]:
+    bit_len = gindex.bit_length()
+    if bit_len <= 1:
+        return
+    shift_v = 1 << (bit_len - 2)
+    while shift_v != 0:
+        yield (gindex & shift_v) != 0
+        shift_v >>= 1
+
+
 def concat_gindices(steps: Iterable[Gindex]) -> Gindex:
     out = 1
     for step in steps:
@@ -55,11 +65,23 @@ SummaryLink = Callable[[], "Node"]
 
 class Node(Protocol):
 
+    def get_left(self) -> "Node":
+        raise NavigationError
+
+    def get_right(self) -> "Node":
+        raise NavigationError
+
     def getter(self, target: Gindex) -> "Node":
         raise NavigationError
 
+    def rebind_left(self, v: "Node") -> "Node":
+        raise NavigationError
+
+    def rebind_right(self, v: "Node") -> "Node":
+        raise NavigationError
+
     def setter(self, target: Gindex, expand: bool = False) -> Link:
-        ...
+        raise NavigationError
 
     def summarize_into(self, target: Gindex) -> SummaryLink:
         setter = self.setter(target)
@@ -106,22 +128,30 @@ class PairNode(Node):
         self.right = right
         self.root = None
 
-    def getter(self, target: Gindex) -> Node:
+    def get_left(self) -> "Node":
+        return self.left
+
+    def get_right(self) -> "Node":
+        return self.right
+
+    def getter(self, target: Gindex) -> "Node":
         if target < 1:
             raise NavigationError
         if target == 1:
             return self
-        if target == 2:
-            return self.left
-        if target == 3:
-            return self.right
-        anchor = get_anchor_gindex(target)
-        pivot = anchor >> 1
-        unanchor = target ^ anchor
-        if unanchor < pivot:
-            return self.left.getter(Gindex(unanchor | pivot))
-        else:
-            return self.right.getter(Gindex(unanchor))
+        node = self
+        for bit in gindex_bit_iter(target):
+            if bit:
+                node = node.get_right()
+            else:
+                node = node.get_left()
+        return node
+
+    def rebind_left(self, v: Node) -> "Node":
+        return PairNode(v, self.right)
+
+    def rebind_right(self, v: Node) -> "Node":
+        return PairNode(self.left, v)
 
     def setter(self, target: Gindex, expand: bool = False) -> Link:
         if target < 1:
@@ -132,21 +162,18 @@ class PairNode(Node):
             return self.rebind_left
         if target == 3:
             return self.rebind_right
-        anchor = get_anchor_gindex(target)
-        pivot = anchor >> 1
-        unanchor = target ^ anchor
-        if unanchor < pivot:
-            inner = self.left.setter(Gindex(unanchor | pivot), expand=expand)
-            return compose(inner, self.rebind_left)
-        else:
-            inner = self.right.setter(Gindex(unanchor), expand=expand)
-            return compose(inner, self.rebind_right)
-
-    def rebind_left(self, v: Node) -> "PairNode":
-        return PairNode(v, self.right)
-
-    def rebind_right(self, v: Node) -> "PairNode":
-        return PairNode(self.left, v)
+        bit_iter = gindex_bit_iter(target)
+        first = bit_iter.__next__()
+        link = self.rebind_right if first else self.rebind_left
+        node = self.get_right() if first else self.get_left()
+        for bit in bit_iter:
+            if bit:
+                link = compose(node.rebind_right, link)
+                node = node.get_right()
+            else:
+                link = compose(node.rebind_left, link)
+                node = node.get_left()
+        return link
 
     def merkle_root(self) -> Root:
         if self.root is not None:

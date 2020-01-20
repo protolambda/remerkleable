@@ -165,7 +165,7 @@ class Bitlist(BitsView):
         return (cls.limit() + 7 + 1) // 8
 
     def length(self) -> int:
-        ll_node = super().get_backing().getter(Gindex(3))
+        ll_node = super().get_backing().get_right()
         ll = cast(uint256, uint256.view_from_backing(node=ll_node, hook=None))
         return int(ll)
 
@@ -186,7 +186,7 @@ class Bitlist(BitsView):
                 next_backing = set_last(_new_chunk_with_bit(chunk, i & 0xff, v))
             else:
                 raise NavigationError(f"chunk {chunk_i} for bit {i} is not available")
-        set_length = next_backing.setter(Gindex(3))
+        set_length = next_backing.rebind_right
         new_length = uint256(ll + 1).get_backing()
         next_backing = set_length(new_length)
         self.set_backing(next_backing)
@@ -219,7 +219,7 @@ class Bitlist(BitsView):
             summary_fn = next_backing.summarize_into(target)
             next_backing = summary_fn()
 
-        set_length = next_backing.setter(Gindex(3))
+        set_length = next_backing.rebind_right
         new_length = uint256(ll - 1).get_backing()
         next_backing = set_length(new_length)
         self.set_backing(next_backing)
