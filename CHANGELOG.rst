@@ -1,6 +1,11 @@
 Changelog
 ==========
 
+v0.1.7
+-------
+
+- Fix bug in `readonly_iter` (and thus list/vector serialization) not being able to handle raw byte-vector element type.
+
 v0.1.6
 -------
 
