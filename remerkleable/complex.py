@@ -94,7 +94,9 @@ class MonoSubtreeView(ColSequence, ComplexView):
         if packed:
             elems_per_chunk = 32 // elem_type.type_byte_length()
 
-        base_view = elem_type.default(hook=None)
+        is_byte_vec = issubclass(elem_type, bytes)
+
+        base_view = None if (packed or is_byte_vec) else elem_type.default(hook=None)
 
         def inner_iter(node: Node, depth: int):
             nonlocal counter
@@ -111,16 +113,19 @@ class MonoSubtreeView(ColSequence, ComplexView):
                                 break
                     else:
                         raise NavigationError(f"chunk {node} for basic element {counter} is not a root node")
-                else:
+                elif not is_byte_vec:
                     counter += 1
                     base_view.set_backing(node)
                     yield base_view
+                else:
+                    counter += 1
+                    yield elem_type.view_from_backing(node)
                 return
             depth -= 1
-            yield from inner_iter(node.left, depth)
+            yield from inner_iter(node.get_left(), depth)
             if counter >= length:
                 return
-            yield from inner_iter(node.right, depth)
+            yield from inner_iter(node.get_right(), depth)
 
         return inner_iter(backing, tree_depth)
 

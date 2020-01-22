@@ -136,6 +136,14 @@ test_data = [
      "03000000000000000000000000000000000000000000000000000000000000ff",
      h(h(chunk("01"), chunk("02")),
        h("03000000000000000000000000000000000000000000000000000000000000ff", chunk("")))),
+    ("3 sigs", Vector[ByteVector[96], 3], Vector[ByteVector[96], 3](
+        [1] + [0 for i in range(95)],
+        [2] + [0 for i in range(95)],
+        [3] + [0 for i in range(95)]
+    ),
+     "01" + ("00" * 95) + "02" + ("00" * 95) + "03" + ("00" * 95),
+     h(h(h(h(chunk("01"), chunk("")), zero_hashes[1]), h(h(chunk("02"), chunk("")), zero_hashes[1])),
+       h(h(h(chunk("03"), chunk("")), zero_hashes[1]), chunk("")))),
     ("singleFieldTestStruct", SingleFieldTestStruct, SingleFieldTestStruct(A=0xab), "ab", chunk("ab")),
     ("uint16 list", List[uint16, 32], List[uint16, 32](uint16(0xaabb), uint16(0xc0ad), uint16(0xeeff)), "bbaaadc0ffee",
      h(h(chunk("bbaaadc0ffee"), chunk("")), chunk("03000000"))  # max length: 32 * 2 = 64 bytes = 2 chunks
