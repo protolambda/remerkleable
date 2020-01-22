@@ -1,6 +1,9 @@
 build-dist:
 	python3 setup.py sdist bdist_wheel
 
+check-dist:
+	python3 -m twine check dist/*
+
 upload-dist:
 	python3 -m twine upload dist/*
 
