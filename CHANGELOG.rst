@@ -1,6 +1,11 @@
 Changelog
 ==========
 
+v0.1.8
+-------
+
+- Fix bug in `ByteVector` chunkify padding. And add tests for this case.
+
 v0.1.7
 -------
 
