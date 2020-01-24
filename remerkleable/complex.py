@@ -250,10 +250,10 @@ class List(MonoSubtreeView):
         elem_cls = cls.element_cls()
         vals = list(args)
         if len(vals) == 1:
-            if isinstance(vals[0], (GeneratorType, list, tuple)):
-                vals = list(vals[0])
+            val = vals[0]
+            if isinstance(val, (GeneratorType, list, tuple)):
+                vals = list(val)
             if issubclass(elem_cls, uint8):
-                val = vals[0]
                 if isinstance(val, bytes):
                     vals = list(val)
                 if isinstance(val, str):
@@ -501,10 +501,10 @@ class Vector(MonoSubtreeView):
         elem_cls = cls.element_cls()
         vals = list(args)
         if len(vals) == 1:
-            if isinstance(vals[0], (GeneratorType, list, tuple)):
-                vals = list(vals[0])
+            val = vals[0]
+            if isinstance(val, (GeneratorType, list, tuple)):
+                vals = list(val)
             if issubclass(elem_cls, uint8):
-                val = vals[0]
                 if isinstance(val, bytes):
                     vals = list(val)
                 if isinstance(val, str):

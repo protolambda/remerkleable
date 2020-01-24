@@ -5,7 +5,7 @@ import io
 from remerkleable.complex import Container, Vector, List
 from remerkleable.basic import boolean, bit, byte, uint8, uint16, uint32, uint64, uint128, uint256
 from remerkleable.bitfields import Bitvector, Bitlist
-from remerkleable.byte_vector import ByteVector
+from remerkleable.byte_arrays import ByteVector, ByteList
 from remerkleable.core import TypeDef, View
 from hashlib import sha256
 
@@ -129,6 +129,22 @@ test_data = [
      h("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f", "202122232425262728292a2b2c2d2e2f00000000000000000000000000000000")),
     ("raw bytes48", ByteVector[48], ByteVector[48](*range(48)), "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f",
      h("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f", "202122232425262728292a2b2c2d2e2f00000000000000000000000000000000")),
+    ("small empty bytelist", List[byte, 10], List[byte, 10](), "", h(chunk(""), chunk("00"))),
+    ("big empty bytelist", List[byte, 2048], List[byte, 2048](), "", h(zero_hashes[6], chunk("00"))),
+    ("raw small empty bytelist", ByteList[10], ByteList[10](), "", h(chunk(""), chunk("00"))),
+    ("raw big empty bytelist", ByteList[2048], ByteList[2048](), "", h(zero_hashes[6], chunk("00"))),
+    ("bytelist 7", List[byte, 7], List[byte, 7](*range(7)), "00010203040506",
+     h(chunk("00010203040506"), chunk("07"))),
+    ("raw bytelist 7", ByteList[7], ByteList[7](*range(7)), "00010203040506",
+     h(chunk("00010203040506"), chunk("07"))),
+    ("bytelist 50", List[byte, 50], List[byte, 50](*range(50)), "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f3031",
+     h(h("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f", "202122232425262728292a2b2c2d2e2f30310000000000000000000000000000"), chunk("32"))),
+    ("raw bytelist 50", ByteList[50], ByteList[50](*range(50)), "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f3031",
+     h(h("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f", "202122232425262728292a2b2c2d2e2f30310000000000000000000000000000"), chunk("32"))),
+    ("bytelist 6/256", List[byte, 256], List[byte, 256](*range(6)), "000102030405",
+     h(h(h(h(chunk("000102030405"), zero_hashes[0]), zero_hashes[1]), zero_hashes[2]), chunk("06"))),
+    ("raw bytelist 6/256", ByteList[256], List[byte, 256](*range(6)), "000102030405",
+     h(h(h(h(chunk("000102030405"), zero_hashes[0]), zero_hashes[1]), zero_hashes[2]), chunk("06"))),
     ("sig", Vector[byte, 96], Vector[byte, 96](*sig_test_data),
      "0100000000000000000000000000000000000000000000000000000000000000"
      "0200000000000000000000000000000000000000000000000000000000000000"

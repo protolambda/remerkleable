@@ -5,7 +5,7 @@ from remerkleable.core import View, TypeDef, BasicView
 from remerkleable.complex import Container, Vector, List
 from remerkleable.basic import boolean, bit, uint, byte, uint8, uint16, uint32, uint64, uint128, uint256
 from remerkleable.bitfields import Bitvector, Bitlist
-from remerkleable.byte_vector import ByteVector, Bytes1, Bytes4, Bytes8, Bytes32, Bytes48, Bytes96
+from remerkleable.byte_arrays import ByteVector, Bytes1, Bytes4, Bytes8, Bytes32, Bytes48, Bytes96
 from remerkleable.core import BasicView, View, TypeDef
 from remerkleable.tree import get_depth
 

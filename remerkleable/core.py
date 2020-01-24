@@ -319,5 +319,5 @@ def pack_bytes_to_chunks(bytez: bytes) -> PyList[Node]:
     full_chunks_byte_len = (len(bytez) >> 5) << 5
     out = [RootNode(Root(bytez[i:i+32])) for i in range(0, full_chunks_byte_len, 32)]
     if len(bytez) != full_chunks_byte_len:
-        out.append(RootNode(Root(bytez[full_chunks_byte_len:] + (b"\x00" * (len(bytez) - full_chunks_byte_len)))))
+        out.append(RootNode(Root(bytez[full_chunks_byte_len:] + (b"\x00" * (32 - (len(bytez) - full_chunks_byte_len))))))
     return out
