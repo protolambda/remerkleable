@@ -1,6 +1,12 @@
 Changelog
 ==========
 
+v0.1.9
+-------
+
+- Fix empty bitfield tree initialization
+- Check lengths of vector and container type declarations
+
 v0.1.8
 -------
 
