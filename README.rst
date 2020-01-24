@@ -26,7 +26,7 @@ Features
 ---------
 
 - Types:
-    - custom byte-vector view for Python bytes-like behavior
+    - custom byte-vector and byte-list view for Python bytes-like behavior
     - bitfields: bitlist, bitvector
     - list, container, vector
     - basic types

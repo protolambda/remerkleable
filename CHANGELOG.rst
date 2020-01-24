@@ -1,6 +1,13 @@
 Changelog
 ==========
 
+v0.1.10
+--------
+
+- List/vector init improvements
+- ByteList support, with new tests
+
+
 v0.1.9
 -------
 
