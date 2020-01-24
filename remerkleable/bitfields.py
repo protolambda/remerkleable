@@ -303,10 +303,10 @@ class Bitlist(BitsView):
             if not isinstance(chunk, RootNode):
                 raise Exception(f"expected a root-node in bitlist backing at chunk index {chunk_index}")
             stream.write(chunk.root)
-        last_chunk = backing.getter(to_gindex(chunk_count - 1, tree_depth))
-        if not isinstance(last_chunk, RootNode):
-            raise Exception(f"expected a root-node in bitlist backing at chunk index {chunk_count - 1}")
         if chunk_count > 0:
+            last_chunk = backing.getter(to_gindex(chunk_count - 1, tree_depth))
+            if not isinstance(last_chunk, RootNode):
+                raise Exception(f"expected a root-node in bitlist backing at chunk index {chunk_count - 1}")
             # write the last chunk, may not be a full chunk
             last_chunk_bytes_count = byte_len - (full_chunks_count * 32)
             bytez = last_chunk.root[:last_chunk_bytes_count]
@@ -353,6 +353,9 @@ class Bitvector(BitsView, FixedByteLengthViewHelper):
         return super().__new__(cls, **kwargs)
 
     def __class_getitem__(cls, length) -> Type["Bitvector"]:
+        if length <= 0:
+            raise Exception(f"invalid bitvector length: {length}")
+
         class SpecialBitvectorView(Bitvector):
             @classmethod
             def vector_length(cls) -> int:
@@ -431,12 +434,12 @@ class Bitvector(BitsView, FixedByteLengthViewHelper):
         for chunk_index in range(full_chunks_count):
             chunk: Node = backing.getter(to_gindex(chunk_index, tree_depth))
             if not isinstance(chunk, RootNode):
-                raise Exception(f"expected a root-node in bitlist backing at chunk index {chunk_index}")
+                raise Exception(f"expected a root-node in bitvector backing at chunk index {chunk_index}")
             stream.write(chunk.root)
-        last_chunk = backing.getter(to_gindex(chunk_count - 1, tree_depth))
-        if not isinstance(last_chunk, RootNode):
-            raise Exception(f"expected a root-node in bitlist backing at chunk index {chunk_count - 1}")
         if chunk_count > 0:
+            last_chunk = backing.getter(to_gindex(chunk_count - 1, tree_depth))
+            if not isinstance(last_chunk, RootNode):
+                raise Exception(f"expected a root-node in bitvector backing at chunk index {chunk_count - 1}")
             # write the last chunk, may not be a full chunk
             last_chunk_bytes_count = byte_len - (full_chunks_count * 32)
             stream.write(last_chunk.root[:last_chunk_bytes_count])

@@ -214,6 +214,8 @@ def subtree_fill_to_depth(bottom: Node, depth: int) -> Node:
 
 
 def subtree_fill_to_length(bottom: Node, depth: int, length: int) -> Node:
+    if length == 0:
+        return zero_node(depth)
     if length > (1 << depth):
         raise Exception("too many nodes")
     if length == (1 << depth):
@@ -238,6 +240,8 @@ def subtree_fill_to_length(bottom: Node, depth: int, length: int) -> Node:
 
 
 def subtree_fill_to_contents(nodes: List[Node], depth: int) -> Node:
+    if len(nodes) == 0:
+        return zero_node(depth)
     if len(nodes) > (1 << depth):
         raise Exception("too many nodes")
     if depth == 0:

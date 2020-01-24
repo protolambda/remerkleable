@@ -527,6 +527,8 @@ class Vector(MonoSubtreeView):
 
     def __class_getitem__(cls, params) -> Type["Vector"]:
         (element_view_cls, length) = params
+        if length <= 0:
+            raise Exception(f"Invalid vector length: {length}")
 
         tree_depth = 0
         packed = False
@@ -693,6 +695,8 @@ class Container(ComplexView):
             return super().__new__(cls, backing=backing, hook=hook, **kwargs)
 
         fields = cls.fields()
+        if len(fields) == 0:
+            raise Exception("Container must have at least one field!")
 
         input_nodes = []
         for fkey, ftyp in fields.items():
