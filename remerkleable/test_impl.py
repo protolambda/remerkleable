@@ -85,6 +85,7 @@ test_data = [
     ("bit T", bit, bit(True), "01", chunk("01")),
     ("boolean F", boolean, boolean(False), "00", chunk("00")),
     ("boolean T", boolean, boolean(True), "01", chunk("01")),
+    ("bitlist empty", Bitlist[8], Bitlist[8](), "01", h(chunk(""), chunk("00"))),
     ("bitvector TTFTFTFF", Bitvector[8], Bitvector[8](1, 1, 0, 1, 0, 1, 0, 0), "2b", chunk("2b")),
     ("bitlist TTFTFTFF", Bitlist[8], Bitlist[8](1, 1, 0, 1, 0, 1, 0, 0), "2b01", h(chunk("2b"), chunk("08"))),
     ("bitvector FTFT", Bitvector[4], Bitvector[4](0, 1, 0, 1), "0a", chunk("0a")),
