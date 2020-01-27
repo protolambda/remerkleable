@@ -90,7 +90,7 @@ class Node(Protocol):
                 node = node.get_left()
         return node
 
-    def is_root(self) -> bool:
+    def is_leaf(self) -> bool:
         return False
 
     def rebind_left(self, v: "Node") -> "Node":
@@ -171,7 +171,7 @@ class RebindableNode(Node):
             else:
                 node = node.get_left()
             depth -= 1
-            if node.is_root():
+            if node.is_leaf():
                 child = zero_node(depth - 1)
                 node = self.combine(child, child)
             if bit:
@@ -199,7 +199,7 @@ class PairNode(RebindableNode, Node):
     def get_right(self) -> "Node":
         return self.right
 
-    def is_root(self) -> bool:
+    def is_leaf(self) -> bool:
         return False
 
     def merkle_root(self) -> Root:
@@ -272,7 +272,7 @@ def subtree_fill_to_contents(nodes: List[Node], depth: int) -> Node:
 
 class RootNode(Node):
     """An optimized root-holding node. To check if a Node functions as node without children,
-     use node.is_root(), since there may be more classes implementing node behavior."""
+     use node.is_leaf(), since there may be more classes implementing non-child node behavior."""
 
     _root: Root
 
@@ -284,7 +284,7 @@ class RootNode(Node):
             raise NavigationError
         return self
 
-    def is_root(self) -> bool:
+    def is_leaf(self) -> bool:
         return True
 
     def setter(self, target: Gindex, expand: bool = False) -> Link:
@@ -308,3 +308,22 @@ class RootNode(Node):
 
     def __repr__(self):
         return f"0x{self._root.hex()}"
+
+
+def leaf_iter(node: Node) -> Iterator[Node]:
+    """Iterate ove the leaf nodes of the given node. Left-to-right order."""
+    if node.is_leaf():
+        yield node
+        return
+    yield from leaf_iter(node.get_left())
+    yield from leaf_iter(node.get_left())
+
+
+def get_diff(a: Node, b: Node) -> Iterator[Node]:
+    """Iterate over the changes of b, not common with a. Left-to-right order."""
+    if a.root != b.root:
+        if a.is_leaf() or b.is_leaf():
+            yield b
+        else:
+            yield from get_diff(a.get_left(), b.get_left())
+            yield from get_diff(a.get_right(), b.get_right())
