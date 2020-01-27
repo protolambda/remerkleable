@@ -11,13 +11,13 @@ from remerkleable.basic import boolean, uint256
 V = TypeVar('V', bound=View)
 
 
-def _new_chunk_with_bit(chunk: RootNode, i: int, v: boolean) -> RootNode:
-    new_chunk_root = bytearray(chunk.root)
+def _new_chunk_with_bit(chunk: Node, i: int, v: boolean) -> Node:
+    new_chunk_root = bytearray(bytes(chunk.root))  # mutable copy
     if v:
         new_chunk_root[(i & 0xf) >> 3] |= 1 << (i & 0x7)
     else:
         new_chunk_root[(i & 0xf) >> 3] &= (~(1 << (i & 0x7))) & 0xff
-    return RootNode(root=Root(new_chunk_root))
+    return RootNode(Root(new_chunk_root))
 
 
 # alike to the SubtreeView, but specialized to work on individual bits of chunks, instead of complex/basic types.
@@ -40,11 +40,8 @@ class BitsView(BackedView, ColSequence):
             raise NavigationError(f"cannot get bit {i} in bits of length {ll}")
         chunk_i = i >> 8
         chunk = self.get_backing().getter(to_gindex(chunk_i, self.__class__.tree_depth()))
-        if isinstance(chunk, RootNode):
-            chunk_byte = chunk.root[(i & 0xf) >> 3]
-            return boolean((chunk_byte >> (i & 0x7)) & 1)
-        else:
-            raise NavigationError(f"chunk {chunk_i} for bit {i} is not available")
+        chunk_byte = chunk.root[(i & 0xf) >> 3]
+        return boolean((chunk_byte >> (i & 0x7)) & 1)
 
     def set(self, i: int, v: boolean) -> None:
         ll = self.length()
@@ -53,11 +50,8 @@ class BitsView(BackedView, ColSequence):
         chunk_i = i >> 8
         chunk_setter_link: Link = self.get_backing().setter(to_gindex(chunk_i, self.__class__.tree_depth()))
         chunk = self.get_backing().getter(to_gindex(chunk_i, self.__class__.tree_depth()))
-        if isinstance(chunk, RootNode):
-            new_chunk = _new_chunk_with_bit(chunk, i, v)
-            self.set_backing(chunk_setter_link(new_chunk))
-        else:
-            raise NavigationError(f"chunk {chunk_i} for bit {i} is not available")
+        new_chunk = _new_chunk_with_bit(chunk, i, v)
+        self.set_backing(chunk_setter_link(new_chunk))
 
     def __len__(self):
         return self.length()
@@ -182,10 +176,7 @@ class Bitlist(BitsView):
         else:
             set_last = self.get_backing().setter(target)
             chunk = self.get_backing().getter(target)
-            if isinstance(chunk, RootNode):
-                next_backing = set_last(_new_chunk_with_bit(chunk, i & 0xff, v))
-            else:
-                raise NavigationError(f"chunk {chunk_i} for bit {i} is not available")
+            next_backing = set_last(_new_chunk_with_bit(chunk, i & 0xff, v))
         set_length = next_backing.rebind_right
         new_length = uint256(ll + 1).get_backing()
         next_backing = set_length(new_length)
@@ -204,10 +195,7 @@ class Bitlist(BitsView):
         else:
             set_last = self.get_backing().setter(target)
             chunk = self.get_backing().getter(target)
-            if isinstance(chunk, RootNode):
-                next_backing = set_last(_new_chunk_with_bit(chunk, ll & 0xff, boolean(False)))
-            else:
-                raise NavigationError(f"chunk {chunk_i} for bit {ll} is not available")
+            next_backing = set_last(_new_chunk_with_bit(chunk, ll & 0xff, boolean(False)))
 
         # if possible, summarize
         can_summarize = (target & 1) == 0
@@ -299,14 +287,10 @@ class Bitlist(BitsView):
         tree_depth = self.tree_depth()
         full_chunks_count = max(0, chunk_count - 1)
         for chunk_index in range(full_chunks_count):
-            chunk: Node = backing.getter(to_gindex(chunk_index, tree_depth))
-            if not isinstance(chunk, RootNode):
-                raise Exception(f"expected a root-node in bitlist backing at chunk index {chunk_index}")
+            chunk = backing.getter(to_gindex(chunk_index, tree_depth))
             stream.write(chunk.root)
         if chunk_count > 0:
             last_chunk = backing.getter(to_gindex(chunk_count - 1, tree_depth))
-            if not isinstance(last_chunk, RootNode):
-                raise Exception(f"expected a root-node in bitlist backing at chunk index {chunk_count - 1}")
             # write the last chunk, may not be a full chunk
             last_chunk_bytes_count = byte_len - (full_chunks_count * 32)
             bytez = last_chunk.root[:last_chunk_bytes_count]
@@ -433,13 +417,9 @@ class Bitvector(BitsView, FixedByteLengthViewHelper):
         full_chunks_count = max(0, chunk_count - 1)
         for chunk_index in range(full_chunks_count):
             chunk: Node = backing.getter(to_gindex(chunk_index, tree_depth))
-            if not isinstance(chunk, RootNode):
-                raise Exception(f"expected a root-node in bitvector backing at chunk index {chunk_index}")
             stream.write(chunk.root)
         if chunk_count > 0:
             last_chunk = backing.getter(to_gindex(chunk_count - 1, tree_depth))
-            if not isinstance(last_chunk, RootNode):
-                raise Exception(f"expected a root-node in bitvector backing at chunk index {chunk_count - 1}")
             # write the last chunk, may not be a full chunk
             last_chunk_bytes_count = byte_len - (full_chunks_count * 32)
             stream.write(last_chunk.root[:last_chunk_bytes_count])

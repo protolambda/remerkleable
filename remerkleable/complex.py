@@ -6,7 +6,7 @@ from itertools import chain
 import io
 from remerkleable.core import View, BasicTypeDef, BasicView, OFFSET_BYTE_LENGTH, ViewHook
 from remerkleable.basic import uint256, uint8, uint32
-from remerkleable.tree import Node, RootNode, subtree_fill_to_length, subtree_fill_to_contents,\
+from remerkleable.tree import Node, subtree_fill_to_length, subtree_fill_to_contents,\
     zero_node, Gindex, PairNode, to_gindex, NavigationError, get_depth
 from remerkleable.subtree import SubtreeView
 
@@ -105,14 +105,11 @@ class MonoSubtreeView(ColSequence, ComplexView):
                 return
             if depth == 0:
                 if packed:
-                    if isinstance(node, RootNode):
-                        for i in range(elems_per_chunk):
-                            counter += 1
-                            yield cast(BasicTypeDef, elem_type).basic_view_from_backing(node, i % elems_per_chunk)
-                            if counter >= length:
-                                break
-                    else:
-                        raise NavigationError(f"chunk {node} for basic element {counter} is not a root node")
+                    for i in range(elems_per_chunk):
+                        counter += 1
+                        yield cast(BasicTypeDef, elem_type).basic_view_from_backing(node, i % elems_per_chunk)
+                        if counter >= length:
+                            break
                 elif not is_byte_vec:
                     counter += 1
                     base_view.set_backing(node)

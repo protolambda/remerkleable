@@ -96,8 +96,12 @@ class Node(Protocol):
         getter = self.getter(target)
         return lambda: setter(RootNode(getter.merkle_root()))
 
+    @property
+    def root(self) -> Root:
+        return self.merkle_root()
+
     def merkle_root(self) -> Root:
-        ...
+        raise
 
 
 # hashes of hashes of zeroes etc.
@@ -127,14 +131,15 @@ V = TypeVar('V', bound=Node)
 
 
 class PairNode(Node):
+    """An optimized, with lazily-computed root, node that references two child nodes."""
+
     left: Node
     right: Node
-    root: Optional[Root]
+    _root: Optional[Root] = None
 
     def __init__(self, left: Node, right: Node):
         self.left = left
         self.right = right
-        self.root = None
 
     def get_left(self) -> "Node":
         return self.left
@@ -196,10 +201,10 @@ class PairNode(Node):
         return link
 
     def merkle_root(self) -> Root:
-        if self.root is not None:
-            return self.root
-        self.root = merkle_hash(self.left.merkle_root(), self.right.merkle_root())
-        return self.root
+        if self._root is not None:
+            return self._root
+        self._root = merkle_hash(self.left.merkle_root(), self.right.merkle_root())
+        return self._root
 
     def __repr__(self) -> str:
         return f"H({self.left}, {self.right})"
@@ -264,10 +269,13 @@ def subtree_fill_to_contents(nodes: List[Node], depth: int) -> Node:
 
 
 class RootNode(Node):
-    root: Root
+    """An optimized root-holding node. To check if a Node functions as node without children,
+     use node.is_root(), since there may be more classes implementing node behavior."""
+
+    _root: Root
 
     def __init__(self, root: Root):
-        self.root = root
+        self._root = root
 
     def getter(self, target: Gindex) -> Node:
         if target != 1:
@@ -288,15 +296,13 @@ class RootNode(Node):
         else:
             raise NavigationError
 
+    @property
+    def root(self) -> Root:
+        # Override to directly provide the root instead of through merkle_root()
+        return self._root
+
     def merkle_root(self) -> Root:
-        return self.root
+        return self._root
 
     def __repr__(self):
-        return f"0x{self.root.hex()}"
-
-
-def must_leaf(n: Node) -> Root:
-    if not isinstance(n, RootNode):
-        raise Exception(f"node {n} is not a rootnode")
-    else:
-        return n.root
+        return f"0x{self._root.hex()}"

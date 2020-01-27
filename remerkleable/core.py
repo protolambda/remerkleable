@@ -237,7 +237,7 @@ BV = TypeVar('BV', bound="BasicView")
 @runtime_checkable
 class BasicTypeDef(TypeDef, Protocol):
     @classmethod
-    def basic_view_from_backing(cls: Type[BV], node: RootNode, i: int) -> BV:
+    def basic_view_from_backing(cls: Type[BV], node: Node, i: int) -> BV:
         ...
 
     @classmethod
@@ -252,14 +252,11 @@ class BasicView(FixedByteLengthViewHelper, BasicTypeDef):
 
     @classmethod
     def view_from_backing(cls: Type[BV], node: Node, hook: Optional[ViewHook[BV]] = None) -> V:
-        if isinstance(node, RootNode):
-            size = cls.type_byte_length()
-            return cls.decode_bytes(node.root[0:size])
-        else:
-            raise Exception("cannot create basic view from composite node!")
+        size = cls.type_byte_length()
+        return cls.decode_bytes(node.root[0:size])
 
     @classmethod
-    def basic_view_from_backing(cls: Type[BV], node: RootNode, i: int) -> BV:
+    def basic_view_from_backing(cls: Type[BV], node: Node, i: int) -> BV:
         size = cls.type_byte_length()
         return cls.decode_bytes(node.root[i*size:(i+1)*size])
 
@@ -270,7 +267,7 @@ class BasicView(FixedByteLengthViewHelper, BasicTypeDef):
     def copy(self: V) -> V:
         return self  # basic views do not have to be copied, they are immutable
 
-    def backing_from_base(self, base: RootNode, i: int) -> RootNode:
+    def backing_from_base(self, base: Node, i: int) -> Node:
         section_bytez = self.encode_bytes()
         chunk_bytez = base.root[:len(section_bytez)*i] + section_bytez + base.root[len(section_bytez)*(i+1):]
         return RootNode(Root(chunk_bytez))

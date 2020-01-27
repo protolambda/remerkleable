@@ -1,6 +1,6 @@
 from typing import Optional, Any, TypeVar, Type, BinaryIO
 from types import GeneratorType
-from remerkleable.tree import Node, RootNode, Root, subtree_fill_to_contents, get_depth, to_gindex, must_leaf, \
+from remerkleable.tree import Node, RootNode, Root, subtree_fill_to_contents, get_depth, to_gindex, \
     subtree_fill_to_length, Gindex, PairNode
 from remerkleable.core import View, ViewHook, zero_node, FixedByteLengthViewHelper, pack_bytes_to_chunks
 from remerkleable.basic import byte, uint256
@@ -104,14 +104,11 @@ class ByteVector(RawBytesView, FixedByteLengthViewHelper, View):
         depth = cls.tree_depth()
         byte_len = cls.vector_length()
         if depth == 0:
-            if isinstance(node, RootNode):
-                return cls.decode_bytes(node.root[:byte_len])
-            else:
-                raise Exception("cannot create <= 32 byte vector view from composite node!")
+            return cls.decode_bytes(node.merkle_root()[:byte_len])
         else:
             chunk_count = (byte_len + 31) // 32
             chunks = [node.getter(to_gindex(i, depth)) for i in range(chunk_count)]
-            bytez = b"".join(map(must_leaf, chunks))[:byte_len]
+            bytez = b"".join(ch.merkle_root() for ch in chunks)[:byte_len]
             return cls.decode_bytes(bytez)
 
     def get_backing(self) -> Node:
@@ -192,14 +189,11 @@ class ByteList(RawBytesView, FixedByteLengthViewHelper, View):
         if length > cls.limit():
             raise Exception("ByteList backing declared length exceeds limit")
         if contents_depth == 0:
-            if isinstance(contents_node, RootNode):
-                return cls.decode_bytes(contents_node.root[:length])
-            else:
-                raise Exception("cannot create <= 32 byte list view from composite node!")
+            return cls.decode_bytes(contents_node.root[:length])
         else:
             chunk_count = (length + 31) // 32
             chunks = [contents_node.getter(to_gindex(i, contents_depth)) for i in range(chunk_count)]
-            bytez = b"".join(map(must_leaf, chunks))[:length]
+            bytez = b"".join(ch.root for ch in chunks)[:length]
             return cls.decode_bytes(bytez)
 
     def get_backing(self) -> Node:
