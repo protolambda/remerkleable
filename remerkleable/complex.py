@@ -1,6 +1,7 @@
 from typing import NamedTuple, cast, List as PyList, Dict, Any, BinaryIO, Optional, TypeVar, Type, Protocol, \
     runtime_checkable
 from types import GeneratorType
+from textwrap import indent
 from collections.abc import Sequence as ColSequence
 from itertools import chain
 import io
@@ -236,6 +237,36 @@ class MonoSubtreeView(ColSequence, ComplexView):
         else:
             self.set(k, v)
 
+    def _repr_sequence(self):
+        length: int
+        try:
+            length = self.length()
+        except NavigationError:
+            return f"{self.type_repr()}( *summary root, no length known* )"
+        vals: Dict[int, View] = {}
+        partial = False
+        for i in range(length):
+            try:
+                vals[i] = self.get(i)
+            except NavigationError:
+                partial = True
+                continue
+        basic_elems = isinstance(self.element_cls(), BasicTypeDef)
+        shortened = length > (64 if basic_elems else 8)
+        summary_length = (10 if basic_elems else 3)
+        seperator = ', ' if basic_elems else ',\n'
+        contents = seperator.join(f"... {length - (summary_length * 2)} omitted ..."
+                                  if (shortened and i == summary_length)
+                                  else (f"{i}: {repr(v)}" if partial else repr(v))
+                                  for i, v in vals.items()
+                                  if (not shortened) or i <= summary_length or i >= length - summary_length)
+        if '\n' in contents:
+            contents = '\n' + indent(contents, '  ') + '\n'
+        if partial:
+            return f"{self.type_repr()}~partial~<<len={length}>>({contents})"
+        else:
+            return f"{self.type_repr()}<<len={length}>>({contents})"
+
 
 class List(MonoSubtreeView):
     def __new__(cls, *args, backing: Optional[Node] = None, hook: Optional[ViewHook] = None, **kwargs):
@@ -300,6 +331,7 @@ class List(MonoSubtreeView):
             def limit(cls) -> int:
                 return limit
 
+        SpecialListView.__name__ = SpecialListView.type_repr()
         return SpecialListView
 
     def length(self) -> int:
@@ -407,29 +439,11 @@ class List(MonoSubtreeView):
         super().set(i, v)
 
     def __repr__(self):
-        length: int
-        try:
-            length = self.length()
-        except NavigationError:
-            return f"{self.type_repr()}( *summary root, no length known* )"
-        vals: Dict[int, View] = {}
-        partial = False
-        for i in range(length):
-            try:
-                vals[i] = self.get(i)
-            except NavigationError:
-                partial = True
-                continue
-        if partial:
-            return f"{self.type_repr()}~partial(length={length})" + \
-                   '(' + ', '.join(f"{i}: {repr(v)}" for i, v in vals.items()) + ')'
-        else:
-            return self.type_repr() + \
-                   '(' + ', '.join(repr(v) for v in vals.values()) + ')'
+        return self._repr_sequence()
 
     @classmethod
     def type_repr(cls) -> str:
-        return f"List[{cls.element_cls().type_repr()}, {cls.limit()}]"
+        return f"List[{cls.element_cls().__name__}, {cls.limit()}]"
 
     @classmethod
     def is_packed(cls) -> bool:
@@ -572,6 +586,7 @@ class Vector(MonoSubtreeView):
 
             SpecialVectorView = FixedSpecialVectorView
 
+        SpecialVectorView.__name__ = SpecialVectorView.type_repr()
         return SpecialVectorView
 
     def get(self, i: int) -> View:
@@ -594,23 +609,11 @@ class Vector(MonoSubtreeView):
             return sum(OFFSET_BYTE_LENGTH + cast(View, el).value_byte_length() for el in iter(self))
 
     def __repr__(self):
-        vals: Dict[int, View] = {}
-        length = self.length()
-        partial = False
-        for i in range(length):
-            try:
-                vals[i] = self.get(i)
-            except NavigationError:
-                partial = True
-                continue
-        if partial:
-            return self.type_repr()+"~partial(" + ', '.join(f"{i}: {repr(v)}" for i, v in vals.items()) + ')'
-        else:
-            return self.type_repr()+'(' + ', '.join(repr(v) for v in vals.values()) + ')'
+        return self._repr_sequence()
 
     @classmethod
     def type_repr(cls) -> str:
-        return f"Vector[{cls.element_cls().type_repr()}, {cls.vector_length()}]"
+        return f"Vector[{cls.element_cls().__name__}, {cls.vector_length()}]"
 
     @classmethod
     def vector_length(cls) -> int:
@@ -802,22 +805,26 @@ class Container(ComplexView):
                 raise AttributeError(f"unknown attribute {key}")
             super().set(i, value)
 
-    def _get_field_val_repr(self, fkey: str) -> str:
+    def _get_field_val_repr(self, fkey: str, ftype: Type[View]) -> str:
+        field_start = '  ' + fkey + ': ' + ftype.__name__ + ' = '
         try:
-            return repr(getattr(self, fkey))
+            field_repr = repr(getattr(self, fkey))
+            if '\n' in field_repr:  # if multiline, indent it, but starting from the value.
+                i = field_repr.index('\n')
+                field_repr = field_repr[:i+1] + indent(field_repr[i+1:], ' ' * len(field_start))
+            return field_start + field_repr
         except NavigationError:
-            return "*omitted from partial*"
+            return f"{field_start} *omitted from partial*"
 
     def __repr__(self):
         return f"{self.__class__.__name__}(Container)\n" + '\n'.join(
-            ('  ' + fkey + ': ' + ftype.type_repr() + ' = ' + self._get_field_val_repr(fkey))
-            for fkey, ftype in self.__class__.fields().items()) + '\n'
+            indent(self._get_field_val_repr(fkey, ftype), '  ')
+            for fkey, ftype in self.__class__.fields().items())
 
     @classmethod
     def type_repr(cls) -> str:
         return f"{cls.__name__}(Container)\n" + '\n'.join(
-            ('  ' + fkey + ': ' + ftype.type_repr()) for fkey, ftype in cls.fields().items()) \
-               + '\n'
+            ('  ' + fkey + ': ' + ftype.__name__) for fkey, ftype in cls.fields().items())
 
     @classmethod
     def decode_bytes(cls: Type[V], bytez: bytes) -> V:

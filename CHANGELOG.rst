@@ -11,6 +11,7 @@ v0.1.11
 - `is_root()` was misleading; root nodes are not the only node classes without child nodes, and root is used for too many other things already. Renamed to `is_leaf()`.
 - Added `leaf_iter(node)`, to iterate over the leafs of a tree
 - Added `tree_diff(a, b)`, to iterate over the differences between a and b.
+- Made `repr` and `type_repr` more sensible, and prettify nested `repr` of complex views.
 
 v0.1.10
 --------
