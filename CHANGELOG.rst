@@ -8,6 +8,9 @@ v0.1.11
 - Generalized previous `RootNode` checking, any node type can be recognized as no-child-nodes now, or lazy-load them.
 - Split `RebindableNode` from `PairNode` for rebinding behavior as mix-in.
 - New `VirtualNode` to lazy-load the child nodes based on the root, instead of lazy-computing the root.
+- `is_root()` was misleading; root nodes are not the only node classes without child nodes, and root is used for too many other things already. Renamed to `is_leaf()`.
+- Added `leaf_iter(node)`, to iterate over the leafs of a tree
+- Added `tree_diff(a, b)`, to iterate over the differences between a and b.
 
 v0.1.10
 --------
