@@ -77,7 +77,18 @@ class Node(Protocol):
         raise NavigationError
 
     def getter(self, target: Gindex) -> "Node":
-        raise NavigationError
+        if target < 1:
+            raise NavigationError
+        if target == 1:
+            return self
+        node = self
+        bit_iter, _ = gindex_bit_iter(target)
+        for bit in bit_iter:
+            if bit:
+                node = node.get_right()
+            else:
+                node = node.get_left()
+        return node
 
     def is_root(self) -> bool:
         return False
@@ -130,45 +141,15 @@ class NavigationError(RuntimeError):
 V = TypeVar('V', bound=Node)
 
 
-class PairNode(Node):
-    """An optimized, with lazily-computed root, node that references two child nodes."""
+class RebindableNode(Node):
+    def combine(self, left: Node, right: Node) -> Node:
+        return PairNode(left, right)
 
-    left: Node
-    right: Node
-    _root: Optional[Root] = None
+    def rebind_left(self, v: Node) -> Node:
+        return self.combine(v, self.get_right())
 
-    def __init__(self, left: Node, right: Node):
-        self.left = left
-        self.right = right
-
-    def get_left(self) -> "Node":
-        return self.left
-
-    def get_right(self) -> "Node":
-        return self.right
-
-    def getter(self, target: Gindex) -> "Node":
-        if target < 1:
-            raise NavigationError
-        if target == 1:
-            return self
-        node = self
-        bit_iter, _ = gindex_bit_iter(target)
-        for bit in bit_iter:
-            if bit:
-                node = node.get_right()
-            else:
-                node = node.get_left()
-        return node
-
-    def is_root(self) -> bool:
-        return False
-
-    def rebind_left(self, v: Node) -> "Node":
-        return PairNode(v, self.right)
-
-    def rebind_right(self, v: Node) -> "Node":
-        return PairNode(self.left, v)
+    def rebind_right(self, v: Node) -> Node:
+        return self.combine(self.get_left(), v)
 
     def setter(self, target: Gindex, expand: bool = False) -> Link:
         if target < 1:
@@ -192,13 +173,34 @@ class PairNode(Node):
             depth -= 1
             if node.is_root():
                 child = zero_node(depth - 1)
-                node = PairNode(child, child)
+                node = self.combine(child, child)
             if bit:
                 link = compose(node.rebind_right, link)
             else:
                 link = compose(node.rebind_left, link)
             prev_bit = bit
         return link
+
+
+class PairNode(RebindableNode, Node):
+    """An optimized, with lazily-computed root, node that references two child nodes."""
+
+    left: Node
+    right: Node
+    _root: Optional[Root] = None
+
+    def __init__(self, left: Node, right: Node):
+        self.left = left
+        self.right = right
+
+    def get_left(self) -> "Node":
+        return self.left
+
+    def get_right(self) -> "Node":
+        return self.right
+
+    def is_root(self) -> bool:
+        return False
 
     def merkle_root(self) -> Root:
         if self._root is not None:
