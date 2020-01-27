@@ -1,6 +1,14 @@
 Changelog
 ==========
 
+v0.1.11
+--------
+
+- `Node.root` is now a read-propery on every type of node.
+- Generalized previous `RootNode` checking, any node type can be recognized as no-child-nodes now, or lazy-load them.
+- Split `RebindableNode` from `PairNode` for rebinding behavior as mix-in.
+- New `VirtualNode` to lazy-load the child nodes based on the root, instead of lazy-computing the root.
+
 v0.1.10
 --------
 
