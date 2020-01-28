@@ -319,11 +319,12 @@ def leaf_iter(node: Node) -> Iterator[Node]:
     yield from leaf_iter(node.get_right())
 
 
-def get_diff(a: Node, b: Node) -> Iterator[Node]:
-    """Iterate over the changes of b, not common with a. Left-to-right order."""
+def get_diff(a: Node, b: Node) -> Iterator[Tuple[Node, Node]]:
+    """Iterate over the changes of b, not common with a. Left-to-right order.
+     Returns (a,b) tuples that can't be diffed deeper."""
     if a.root != b.root:
         if a.is_leaf() or b.is_leaf():
-            yield b
+            yield a, b
         else:
             yield from get_diff(a.get_left(), b.get_left())
             yield from get_diff(a.get_right(), b.get_right())
