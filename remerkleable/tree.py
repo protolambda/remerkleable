@@ -316,7 +316,7 @@ def leaf_iter(node: Node) -> Iterator[Node]:
         yield node
         return
     yield from leaf_iter(node.get_left())
-    yield from leaf_iter(node.get_left())
+    yield from leaf_iter(node.get_right())
 
 
 def get_diff(a: Node, b: Node) -> Iterator[Node]:
