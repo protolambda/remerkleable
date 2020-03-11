@@ -5,7 +5,7 @@ import io
 from remerkleable.core import BackedView, FixedByteLengthViewHelper, \
     pack_bits_to_chunks, View
 from remerkleable.tree import Node, PairNode, zero_node, Gindex, to_gindex, Link, RootNode, NavigationError,\
-    Root, subtree_fill_to_contents, get_depth
+    Root, subtree_fill_to_contents, subtree_fill_to_length, get_depth
 from remerkleable.basic import boolean, uint256
 
 V = TypeVar('V', bound=View)
@@ -14,9 +14,9 @@ V = TypeVar('V', bound=View)
 def _new_chunk_with_bit(chunk: Node, i: int, v: boolean) -> Node:
     new_chunk_root = bytearray(bytes(chunk.root))  # mutable copy
     if v:
-        new_chunk_root[(i & 0xf) >> 3] |= 1 << (i & 0x7)
+        new_chunk_root[(i & 0xff) >> 3] |= 1 << (i & 0x7)
     else:
-        new_chunk_root[(i & 0xf) >> 3] &= (~(1 << (i & 0x7))) & 0xff
+        new_chunk_root[(i & 0xff) >> 3] &= (~(1 << (i & 0x7))) & 0xff
     return RootNode(Root(new_chunk_root))
 
 
@@ -40,7 +40,7 @@ class BitsView(BackedView, ColSequence):
             raise NavigationError(f"cannot get bit {i} in bits of length {ll}")
         chunk_i = i >> 8
         chunk = self.get_backing().getter(to_gindex(chunk_i, self.__class__.tree_depth()))
-        chunk_byte = chunk.root[(i & 0xf) >> 3]
+        chunk_byte = chunk.root[(i & 0xff) >> 3]
         return boolean((chunk_byte >> (i & 0x7)) & 1)
 
     def set(self, i: int, v: boolean) -> None:
@@ -50,7 +50,7 @@ class BitsView(BackedView, ColSequence):
         chunk_i = i >> 8
         chunk_setter_link: Link = self.get_backing().setter(to_gindex(chunk_i, self.__class__.tree_depth()))
         chunk = self.get_backing().getter(to_gindex(chunk_i, self.__class__.tree_depth()))
-        new_chunk = _new_chunk_with_bit(chunk, i, v)
+        new_chunk = _new_chunk_with_bit(chunk, i & 0xff, v)
         self.set_backing(chunk_setter_link(new_chunk))
 
     def __len__(self):
@@ -357,7 +357,7 @@ class Bitvector(BitsView, FixedByteLengthViewHelper):
 
     @classmethod
     def default_node(cls) -> Node:
-        return zero_node(cls.tree_depth())
+        return subtree_fill_to_length(zero_node(0), cls.tree_depth(), ((cls.vector_length() + 255) // 256))
 
     @classmethod
     def type_repr(cls) -> str:
