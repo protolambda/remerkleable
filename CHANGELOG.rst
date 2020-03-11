@@ -1,6 +1,11 @@
 Changelog
 ==========
 
+v0.1.12
+--------
+
+- Bugfixes for medium/big sized bitvectors
+
 v0.1.11
 --------
 
