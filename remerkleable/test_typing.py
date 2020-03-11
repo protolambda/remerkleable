@@ -197,7 +197,6 @@ def test_list():
 
 
 def test_bytesn_subclass():
-
     class Root(Bytes32):
         pass
 
@@ -226,17 +225,20 @@ def test_uint_math():
 def test_container_depth():
     class SingleField(Container):
         foo: uint32
+
     assert SingleField.tree_depth() == 0
 
     class TwoField(Container):
         foo: uint32
         bar: uint64
+
     assert TwoField.tree_depth() == 1
 
     class ThreeField(Container):
         foo: uint32
         bar: uint64
         quix: uint8
+
     assert ThreeField.tree_depth() == 2
 
     class FourField(Container):
@@ -244,6 +246,7 @@ def test_container_depth():
         bar: uint64
         quix: uint8
         more: uint32
+
     assert FourField.tree_depth() == 2
 
     class FiveField(Container):
@@ -252,6 +255,7 @@ def test_container_depth():
         quix: uint8
         more: uint32
         fiv: uint8
+
     assert FiveField.tree_depth() == 3
 
 
@@ -267,6 +271,7 @@ def test_paths():
         bar: uint64
         quix: uint8
         more: uint32
+
     assert (FourField / 'foo').navigate_type() == uint32
     assert (FourField / 'bar').navigate_type() == uint64
     assert (FourField / 'foo').gindex() == 0b100
@@ -275,6 +280,7 @@ def test_paths():
     class Wrapper(Container):
         a: uint32
         b: FourField
+
     assert (Wrapper / 'a').navigate_type() == uint32
     assert (Wrapper / 'b').navigate_type() == FourField
     assert (Wrapper / 'b' / 'quix').navigate_type() == uint8
@@ -293,3 +299,29 @@ def test_paths():
         assert False
     except KeyError:
         pass
+
+
+def test_bitvector():
+    for size in [1, 2, 3, 4, 5, 6, 7, 8, 9, 15, 16, 17, 31, 32, 33, 63, 64, 65, 511, 512, 513, 1023, 1024, 1025]:
+        for i in range(size):
+            b = Bitvector[size]()
+            b[i] = True
+            assert bool(b[i]) == True, "set %d / %d" % (i, size)
+
+        for i in range(size):
+            b = Bitvector[size](True for i in range(size))
+            b[i] = False
+            assert bool(b[i]) == False, "unset %d / %d" % (i, size)
+
+
+def test_bitlist():
+    for size in [1, 2, 3, 4, 5, 6, 7, 8, 9, 15, 16, 17, 31, 32, 33, 63, 64, 65, 511, 512, 513, 1023, 1024, 1025]:
+        for i in range(size):
+            b = Bitlist[size](False for i in range(size))
+            b[i] = True
+            assert bool(b[i]) == True, "set %d / %d" % (i, size)
+
+        for i in range(size):
+            b = Bitlist[size](True for i in range(size))
+            b[i] = False
+            assert bool(b[i]) == False, "unset %d / %d" % (i, size)
