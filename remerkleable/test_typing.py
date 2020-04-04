@@ -1,6 +1,8 @@
 # flake8:noqa F401  Ignore unused imports. Tests are a work in progress.
 import pytest
 
+from random import Random
+
 from remerkleable.core import View, TypeDef, BasicView
 from remerkleable.complex import Container, Vector, List
 from remerkleable.basic import boolean, bit, uint, byte, uint8, uint16, uint32, uint64, uint128, uint256
@@ -314,6 +316,17 @@ def test_bitvector():
             assert bool(b[i]) == False, "unset %d / %d" % (i, size)
 
 
+def test_bitvector_iter():
+    rng = Random(123)
+    for size in [1, 2, 3, 4, 5, 6, 7, 8, 9, 15, 16, 17, 31, 32, 33, 63, 64, 65, 511, 512, 513, 1023, 1024, 1025]:
+        # get a somewhat random bitvector
+        bools = list(rng.randint(0, 1) == 1 for i in range(size))
+        b = Bitvector[size](*bools)
+        # Test iterator
+        for i, bit in enumerate(b):
+            assert bool(bit) == bools[i]
+
+
 def test_bitlist():
     for size in [1, 2, 3, 4, 5, 6, 7, 8, 9, 15, 16, 17, 31, 32, 33, 63, 64, 65, 511, 512, 513, 1023, 1024, 1025]:
         for i in range(size):
@@ -325,3 +338,15 @@ def test_bitlist():
             b = Bitlist[size](True for i in range(size))
             b[i] = False
             assert bool(b[i]) == False, "unset %d / %d" % (i, size)
+
+
+def test_bitlist_iter():
+    rng = Random(123)
+    for limit in [1, 2, 3, 4, 5, 6, 7, 8, 9, 15, 16, 17, 31, 32, 33, 63, 64, 65, 511, 512, 513, 1023, 1024, 1025]:
+        for length in [0, 1, limit // 2, limit]:
+            # get a somewhat random bitvector
+            bools = list(rng.randint(0, 1) == 1 for i in range(length))
+            b = Bitlist[limit](*bools)
+            # Test iterator
+            for i, bit in enumerate(b):
+                assert bool(bit) == bools[i]

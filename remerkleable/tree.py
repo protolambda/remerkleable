@@ -104,8 +104,8 @@ class Node(Protocol):
 
     def summarize_into(self, target: Gindex) -> SummaryLink:
         setter = self.setter(target)
-        getter = self.getter(target)
-        return lambda: setter(RootNode(getter.merkle_root()))
+        node = self.getter(target)
+        return lambda: setter(RootNode(node.merkle_root()))
 
     @property
     def root(self) -> Root:
@@ -172,6 +172,8 @@ class RebindableNode(Node):
                 node = node.get_left()
             depth -= 1
             if node.is_leaf():
+                if not expand:
+                    raise NavigationError
                 child = zero_node(depth - 1)
                 node = self.combine(child, child)
             if bit:
@@ -183,15 +185,18 @@ class RebindableNode(Node):
 
 
 class PairNode(RebindableNode, Node):
-    """An optimized, with lazily-computed root, node that references two child nodes."""
+    """An optimized, with lazily-computed root, a node that references two child nodes."""
+
+    __slots__ = 'left', 'right', '_root'
 
     left: Node
     right: Node
-    _root: Optional[Root] = None
+    _root: Optional[Root]
 
     def __init__(self, left: Node, right: Node):
         self.left = left
         self.right = right
+        self._root = None
 
     def get_left(self) -> "Node":
         return self.left
@@ -273,6 +278,8 @@ def subtree_fill_to_contents(nodes: List[Node], depth: int) -> Node:
 class RootNode(Node):
     """An optimized root-holding node. To check if a Node functions as node without children,
      use node.is_leaf(), since there may be more classes implementing non-child node behavior."""
+
+    __slots__ = '_root'
 
     _root: Root
 

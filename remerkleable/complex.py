@@ -10,6 +10,7 @@ from remerkleable.basic import uint256, uint8, uint32
 from remerkleable.tree import Node, subtree_fill_to_length, subtree_fill_to_contents,\
     zero_node, Gindex, PairNode, to_gindex, NavigationError, get_depth
 from remerkleable.subtree import SubtreeView
+from remerkleable.readonly_iters import PackedIter, ComplexElemIter, ComplexFreshElemIter
 
 V = TypeVar('V', bound=View)
 
@@ -88,44 +89,16 @@ class MonoSubtreeView(ColSequence, ComplexView):
         tree_depth = self.tree_depth()
         length = self.length()
         backing = self.get_backing()
-        counter = 0
+
         elem_type: Type[View] = self.element_cls()
-        packed = self.is_packed()
-        elems_per_chunk = 0
-        if packed:
-            elems_per_chunk = 32 // elem_type.type_byte_length()
 
-        is_byte_vec = issubclass(elem_type, bytes)
-
-        base_view = None if (packed or is_byte_vec) else elem_type.default(hook=None)
-
-        def inner_iter(node: Node, depth: int):
-            nonlocal counter
-            nonlocal length
-            if counter >= length:
-                return
-            if depth == 0:
-                if packed:
-                    for i in range(elems_per_chunk):
-                        counter += 1
-                        yield cast(BasicTypeDef, elem_type).basic_view_from_backing(node, i % elems_per_chunk)
-                        if counter >= length:
-                            break
-                elif not is_byte_vec:
-                    counter += 1
-                    base_view.set_backing(node)
-                    yield base_view
-                else:
-                    counter += 1
-                    yield elem_type.view_from_backing(node)
-                return
-            depth -= 1
-            yield from inner_iter(node.get_left(), depth)
-            if counter >= length:
-                return
-            yield from inner_iter(node.get_right(), depth)
-
-        return inner_iter(backing, tree_depth)
+        if self.is_packed():
+            return PackedIter(backing, tree_depth, length, cast(Type[BasicView], elem_type))
+        else:
+            if issubclass(elem_type, bytes):  # is the element type the raw-bytes? Then not re-use views.
+                return ComplexFreshElemIter(backing, tree_depth, length, cast(Type[View], elem_type))
+            else:
+                return ComplexElemIter(backing, tree_depth, length, elem_type)
 
     @classmethod
     def deserialize(cls: Type[V], stream: BinaryIO, scope: int) -> V:
@@ -687,6 +660,7 @@ class Container(ComplexView):
     # If none are specified, it will fall back on this (to avoid annotations of super classes),
     # and error on construction, since empty container types are invalid.
     _empty_annotations: bool
+    _field_indices: Dict[str, int]
 
     def __new__(cls, *args, backing: Optional[Node] = None, hook: Optional[ViewHook] = None, **kwargs):
         if backing is not None:
@@ -694,12 +668,8 @@ class Container(ComplexView):
                 raise Exception("cannot have both a backing and elements to init List")
             return super().__new__(cls, backing=backing, hook=hook, **kwargs)
 
-        fields = cls.fields()
-        if len(fields) == 0:
-            raise Exception("Container must have at least one field!")
-
         input_nodes = []
-        for fkey, ftyp in fields.items():
+        for i, (fkey, ftyp) in enumerate(cls.fields().items()):
             fnode: Node
             if fkey in kwargs:
                 finput = kwargs.pop(fkey)
@@ -711,7 +681,14 @@ class Container(ComplexView):
                 fnode = ftyp.default_node()
             input_nodes.append(fnode)
         backing = subtree_fill_to_contents(input_nodes, cls.tree_depth())
-        return super().__new__(cls, backing=backing, hook=hook, **kwargs)
+        out = super().__new__(cls, backing=backing, hook=hook, **kwargs)
+        return out
+
+    def __init_subclass__(cls, *args, **kwargs):
+        super().__init_subclass__(*args, **kwargs)
+        cls._field_indices = {fkey: i for i, fkey in enumerate(cls.__annotations__.keys()) if fkey[0] != '_'}
+        if len(cls._field_indices) == 0:
+            raise Exception(f"Container {cls.__name__} must have at least one field!")
 
     @classmethod
     def coerce_view(cls: Type[V], v: Any) -> V:
@@ -719,10 +696,7 @@ class Container(ComplexView):
 
     @classmethod
     def fields(cls) -> Fields:
-        annot = cls.__annotations__
-        if '_empty_annotations' in annot.keys():
-            raise Exception("detected fallback empty annotation, cannot have container type without fields")
-        return annot
+        return cls.__annotations__
 
     @classmethod
     def is_fixed_byte_length(cls) -> bool:
@@ -787,10 +761,9 @@ class Container(ComplexView):
         if item[0] == '_':
             return super().__getattribute__(item)
         else:
-            keys = self.__class__.fields().keys()
             try:
-                i = list(keys).index(item)
-            except ValueError:
+                i = self.__class__._field_indices[item]
+            except KeyError:
                 raise AttributeError(f"unknown attribute {item}")
             return super().get(i)
 
@@ -798,10 +771,9 @@ class Container(ComplexView):
         if key[0] == '_':
             super().__setattr__(key, value)
         else:
-            keys = self.__class__.fields().keys()
             try:
-                i = list(keys).index(key)
-            except ValueError:
+                i = self.__class__._field_indices[key]
+            except KeyError:
                 raise AttributeError(f"unknown attribute {key}")
             super().set(i, value)
 

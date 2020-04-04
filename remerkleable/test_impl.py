@@ -16,10 +16,6 @@ def bytes_hash(data: bytes):
     return sha256(data).digest()
 
 
-class EmptyTestStruct(Container):
-    pass
-
-
 class SingleFieldTestStruct(Container):
     A: byte
 
@@ -350,3 +346,19 @@ def test_decode_bytes(name: str, typ: Type[View], value: View, serialized: str, 
     bytez = bytes.fromhex(serialized)
     decoded = typ.decode_bytes(bytez)
     assert decoded == value
+
+
+@pytest.mark.parametrize("name, typ, value, serialized, root", test_data)
+def test_readonly_iters(name: str, typ: Type[View], value: View, serialized: str, root: str):
+    if hasattr(value, 'readonly_iter'):
+        r_iter = value.readonly_iter()
+        i = 0
+        for expected_elem in iter(value):
+            got_elem = r_iter.__next__()
+            assert expected_elem == got_elem
+            i += 1
+        try:
+            r_iter.__next__()
+            assert False
+        except StopIteration:
+            pass

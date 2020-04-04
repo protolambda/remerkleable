@@ -7,6 +7,7 @@ from remerkleable.core import BackedView, FixedByteLengthViewHelper, \
 from remerkleable.tree import Node, PairNode, zero_node, Gindex, to_gindex, Link, RootNode, NavigationError,\
     Root, subtree_fill_to_contents, subtree_fill_to_length, get_depth
 from remerkleable.basic import boolean, uint256
+from remerkleable.readonly_iters import BitfieldIter
 
 V = TypeVar('V', bound=View)
 
@@ -55,9 +56,6 @@ class BitsView(BackedView, ColSequence):
 
     def __len__(self):
         return self.length()
-
-    def __iter__(self):
-        return iter(self.get(i) for i in range(self.length()))
 
     def __getitem__(self, k):
         length = self.length()
@@ -124,6 +122,9 @@ class Bitlist(BitsView):
                 return limit
 
         return SpecialBitlistView
+
+    def __iter__(self):
+        return BitfieldIter(self.get_backing().get_left(), self.contents_depth(), self.length())
 
     @classmethod
     def contents_depth(cls) -> int:  # depth excluding the length mix-in
@@ -346,6 +347,9 @@ class Bitvector(BitsView, FixedByteLengthViewHelper):
                 return length
 
         return SpecialBitvectorView
+
+    def __iter__(self):
+        return BitfieldIter(self.get_backing(), self.__class__.tree_depth(), self.__class__.vector_length())
 
     @classmethod
     def tree_depth(cls) -> int:

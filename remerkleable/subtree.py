@@ -1,4 +1,4 @@
-from typing import Type
+from typing import Type, cast
 from remerkleable.core import TypeDef, View, BackedView, BasicTypeDef, BasicView
 from remerkleable.tree import Link, to_gindex
 
@@ -20,13 +20,10 @@ class SubtreeView(BackedView, TypeDef):
         elem_type: Type[View] = self.item_elem_cls(i)
         # basic types are more complicated: we operate on subsections packed into a bottom chunk
         if self.is_packed():
-            if isinstance(elem_type, BasicTypeDef):
-                elems_per_chunk = 32 // elem_type.type_byte_length()
-                chunk_i = i // elems_per_chunk
-                chunk = self.get_backing().getter(to_gindex(chunk_i, self.tree_depth()))
-                return elem_type.basic_view_from_backing(chunk, i % elems_per_chunk)
-            else:
-                raise Exception("cannot pack subtree elements that are not basic types")
+            elems_per_chunk = 32 // elem_type.type_byte_length()
+            chunk_i = i // elems_per_chunk
+            chunk = self.get_backing().getter(to_gindex(chunk_i, self.tree_depth()))
+            return cast(Type[BasicView], elem_type).basic_view_from_backing(chunk, i % elems_per_chunk)
         else:
             return elem_type.view_from_backing(
                 self.get_backing().getter(to_gindex(i, self.tree_depth())), lambda v: self.set(i, v))
