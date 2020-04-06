@@ -1,6 +1,13 @@
 Changelog
 ==========
 
+v0.1.13
+--------
+
+- `mul` and `floordiv` type checks
+- bitfield, packed-vector/list, complex-vector/list, container stack-based iterators
+- Minor style fixes and optimizations
+
 v0.1.12
 --------
 
