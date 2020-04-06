@@ -5,18 +5,19 @@ from random import Random
 
 from remerkleable.core import View, TypeDef, BasicView
 from remerkleable.complex import Container, Vector, List
-from remerkleable.basic import boolean, bit, uint, byte, uint8, uint16, uint32, uint64, uint128, uint256
+from remerkleable.basic import boolean, bit, uint, byte, uint8, uint16, uint32, uint64, uint128, uint256,\
+    OperationNotSupported
 from remerkleable.bitfields import Bitvector, Bitlist
 from remerkleable.byte_arrays import ByteVector, Bytes1, Bytes4, Bytes8, Bytes32, Bytes48, Bytes96
 from remerkleable.core import BasicView, View, TypeDef
 from remerkleable.tree import get_depth
 
 
-def expect_value_error(fn, msg):
+def expect_op_error(fn, msg):
     try:
         fn()
         raise AssertionError(msg)
-    except ValueError:
+    except (ValueError, OperationNotSupported, AttributeError) as e:
         pass
 
 
@@ -64,13 +65,40 @@ def test_basic_value_bounds():
         # this should work
         assert k(v - 1) == v - 1
         # but we do not allow overflows
-        expect_value_error(lambda: k(v), f"no overflows allowed: type: {k}, value: {v}")
+        expect_op_error(lambda: k(v), f"no overflows allowed: type: {k}, value: {v}")
 
     for k, _ in max.items():
         # this should work
         assert k(0) == 0
         # but we do not allow underflows
-        expect_value_error(lambda: k(-1), "no underflows allowed")
+        expect_op_error(lambda: k(-1), "no underflows allowed")
+
+    for k, v in max.items():
+        if v == 2:
+            continue  # skip bool/bit
+        half = v // 2
+        # this should work
+        assert k(half) + k(half-1) == v - 1
+        # but 2x half == max, so this should fail
+        expect_op_error(lambda: k(half) + k(half), f"no __add__ overflows allowed: type: {k}, value: {half}")
+        # this should work
+        assert k(half) - k(half) == 0
+        assert k(half-1) - k(half-1) == 0
+        # but underflow should not
+        expect_op_error(lambda: k(half - 1) - k(half), f"no __sub__ underflows allowed: type: {k}, value: {half}")
+
+    for k, v in max.items():
+        if v == 2:
+            continue  # skip bool/bit
+        assert k(v-1) * k(1) == v-1
+        assert k(v // 3) * 2 == (v // 3) * 2
+        assert k((v // 2) - 1) * 2 == ((v // 2) - 1) * 2
+        # but 2x max-1 should fail
+        expect_op_error(lambda: k(v - 1) * 2, f"no __mul__ overflows allowed: type: {k}")
+        # and 2x half too
+        expect_op_error(lambda: k(v // 2) * 2, f"no __mul__ overflows allowed: type: {k}")
+        expect_op_error(lambda: k(v // 2) // 0.5, f"no __floordiv__ with float overflows allowed: type: {k}")
+        expect_op_error(lambda: k(v - 1) / 2.0, f"no __truediv__ allowed: type: {k}")
 
 
 def test_container():
@@ -215,11 +243,11 @@ def test_bytesn_subclass():
 def test_uint_math():
     assert uint8(0) + uint8(uint32(16)) == uint8(16)  # allow explicit casting to make invalid addition valid
 
-    expect_value_error(lambda: uint8(0) - uint8(1), "no underflows allowed")
-    expect_value_error(lambda: uint8(1) + uint8(255), "no overflows allowed")
-    expect_value_error(lambda: uint8(0) + 256, "no overflows allowed")
-    expect_value_error(lambda: uint8(42) + uint32(123), "no mixed types")
-    expect_value_error(lambda: uint32(42) + uint8(123), "no mixed types")
+    expect_op_error(lambda: uint8(0) - uint8(1), "no underflows allowed")
+    expect_op_error(lambda: uint8(1) + uint8(255), "no overflows allowed")
+    expect_op_error(lambda: uint8(0) + 256, "no overflows allowed")
+    expect_op_error(lambda: uint8(42) + uint32(123), "no mixed types")
+    expect_op_error(lambda: uint32(42) + uint8(123), "no mixed types")
 
     assert type(uint32(1234) + 56) == uint32
 

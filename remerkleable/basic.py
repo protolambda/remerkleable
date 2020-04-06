@@ -4,6 +4,12 @@ from remerkleable.core import BasicView, View
 V = TypeVar('V', bound=View)
 
 
+# Not returning "NotImplemented" like regular operators,
+# it's completely invalid, do not let the interpreter resort to the other operation hand.
+class OperationNotSupported(Exception):
+    pass
+
+
 class boolean(int, BasicView):
 
     def encode_bytes(self) -> bytes:
@@ -13,6 +19,21 @@ class boolean(int, BasicView):
         if value < 0 or value > 1:
             raise ValueError(f"value {value} out of bounds for bit")
         return super().__new__(cls, value)
+
+    def __add__(self, other):
+        raise OperationNotSupported(f"cannot add bool ({self} + {other})")
+
+    def __sub__(self, other):
+        raise OperationNotSupported(f"cannot sub bool ({self} - {other})")
+
+    def __mul__(self, other):
+        raise OperationNotSupported(f"cannot mul bool ({self} * {other})")
+
+    def __floordiv__(self, other):  # Better known as "//"
+        raise OperationNotSupported(f"cannot floordiv bool ({self} // {other})")
+
+    def __truediv__(self, other):
+        raise OperationNotSupported(f"cannot truediv bool ({self} / {other})")
 
     def __bool__(self):
         return self > 0
@@ -54,6 +75,9 @@ class uint(int, BasicView):
 
     def __floordiv__(self, other):  # Better known as "//"
         return self.__class__(super().__floordiv__(self.__class__.coerce_view(other)))
+
+    def __truediv__(self, other):
+        raise OperationNotSupported(f"non-integer division '{self} / {other}' is not valid for {self.__class__.type_repr()} type")
 
     @classmethod
     def coerce_view(cls: Type[V], v: Any) -> V:
