@@ -77,7 +77,8 @@ class uint(int, BasicView):
         return self.__class__(super().__floordiv__(self.__class__.coerce_view(other)))
 
     def __truediv__(self, other):
-        raise OperationNotSupported(f"non-integer division '{self} / {other}' is not valid for {self.__class__.type_repr()} type")
+        raise OperationNotSupported(f"non-integer division '{self} / {other}' "
+                                    f"is not valid for {self.__class__.type_repr()} type")
 
     @classmethod
     def coerce_view(cls: Type[V], v: Any) -> V:

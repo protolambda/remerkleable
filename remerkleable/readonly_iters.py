@@ -125,7 +125,8 @@ class PackedIter(object):
         limit = (1 << depth) * self.per_node
 
         if limit < length:
-            raise Exception(f"cannot handle iterate length {length} bottom subviews ({self.per_node} per node) in subtree of depth {depth} deep (limit {limit} subviews)")
+            raise Exception(f"cannot handle iterate length {length} bottom subviews ({self.per_node} per node) "
+                            f"in subtree of depth {depth} deep (limit {limit} subviews)")
 
     def __iter__(self):
         self.i = 0
@@ -211,7 +212,8 @@ class NodeIter(object):
 
         limit = 1 << depth
         if limit < length:
-            raise Exception(f"cannot handle iterate length {length} bottom nodes in subtree of depth {depth} deep (limit {limit} nodes)")
+            raise Exception(f"cannot handle iterate length {length} bottom nodes "
+                            f"in subtree of depth {depth} deep (limit {limit} nodes)")
 
     def __iter__(self):
         self.i = 0
