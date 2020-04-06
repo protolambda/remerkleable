@@ -49,6 +49,12 @@ class uint(int, BasicView):
     def __sub__(self, other):
         return self.__class__(super().__sub__(self.__class__.coerce_view(other)))
 
+    def __mul__(self, other):
+        return self.__class__(super().__mul__(self.__class__.coerce_view(other)))
+
+    def __floordiv__(self, other):  # Better known as "//"
+        return self.__class__(super().__floordiv__(self.__class__.coerce_view(other)))
+
     @classmethod
     def coerce_view(cls: Type[V], v: Any) -> V:
         if isinstance(v, uint) and cls.type_byte_length() != v.__class__.type_byte_length():
