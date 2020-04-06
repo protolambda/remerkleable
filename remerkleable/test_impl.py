@@ -362,3 +362,7 @@ def test_readonly_iters(name: str, typ: Type[View], value: View, serialized: str
             assert False
         except StopIteration:
             pass
+    if isinstance(value, Container):
+        fields = list(value)
+        expected = [getattr(value, fkey) for fkey in value.__class__.fields().keys()]
+        assert fields == expected

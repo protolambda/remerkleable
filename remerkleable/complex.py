@@ -10,7 +10,7 @@ from remerkleable.basic import uint256, uint8, uint32
 from remerkleable.tree import Node, subtree_fill_to_length, subtree_fill_to_contents,\
     zero_node, Gindex, PairNode, to_gindex, NavigationError, get_depth
 from remerkleable.subtree import SubtreeView
-from remerkleable.readonly_iters import PackedIter, ComplexElemIter, ComplexFreshElemIter
+from remerkleable.readonly_iters import PackedIter, ComplexElemIter, ComplexFreshElemIter, ContainerElemIter
 
 V = TypeVar('V', bound=View)
 
@@ -797,6 +797,11 @@ class Container(ComplexView):
     def type_repr(cls) -> str:
         return f"{cls.__name__}(Container)\n" + '\n'.join(
             ('  ' + fkey + ': ' + ftype.__name__) for fkey, ftype in cls.fields().items())
+
+    def __iter__(self):
+        tree_depth = self.tree_depth()
+        backing = self.get_backing()
+        return ContainerElemIter(backing, tree_depth, list(self.__class__.fields().values()))
 
     @classmethod
     def decode_bytes(cls: Type[V], bytez: bytes) -> V:

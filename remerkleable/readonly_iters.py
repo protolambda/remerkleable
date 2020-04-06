@@ -1,4 +1,4 @@
-from typing import List as PyList, Optional, Type
+from typing import List as PyList, Optional, Type, Sequence
 from remerkleable.core import BasicView, View
 from remerkleable.tree import Node, Root, RootNode, ZERO_ROOT
 
@@ -280,3 +280,18 @@ class ComplexFreshElemIter(NodeIter):
     def __next__(self):
         node = super().__next__()
         return self.elem_type.view_from_backing(node, None)
+
+
+class ContainerElemIter(NodeIter):
+    """Iterates a subtree by traversing it with a stack (thus readonly), not reusing a view to return elements"""
+
+    elem_types: Sequence[Type[View]]
+
+    def __init__(self, anchor: Node, depth: int, elem_types: Sequence[Type[View]]):
+        super().__init__(anchor, depth, len(elem_types))
+        self.elem_types = elem_types
+
+    def __next__(self):
+        i = self.i
+        node = super().__next__()
+        return self.elem_types[i].view_from_backing(node, None)

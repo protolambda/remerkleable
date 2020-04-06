@@ -138,6 +138,9 @@ def test_container():
     assert v.__class__.element_cls() == uint8
     assert v.__class__.limit() == 1024
 
+    field_values = list(y)
+    assert field_values == [y.a, y.b]
+
     y.a = 42
     try:
         y.a = 256  # out of bounds
