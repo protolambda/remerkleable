@@ -141,6 +141,10 @@ def test_container():
     field_values = list(y)
     assert field_values == [y.a, y.b]
 
+    f_a, f_b = y
+    assert f_a == y.a
+    assert f_b == y.b
+
     y.a = 42
     try:
         y.a = 256  # out of bounds
@@ -159,6 +163,17 @@ def test_container():
         assert False
     except AttributeError:
         pass
+
+
+def test_container_unpack():
+    class Foo(Container):
+        a: uint64
+        b: uint8
+        c: Vector[uint16, 123]
+
+    foo = Foo(b=42)
+    a, b, c = foo
+    assert b == 42
 
 
 def test_list():
