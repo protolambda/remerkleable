@@ -10,7 +10,7 @@ build:
   image: latest
 
 python:
-  #  version: 3.8  -- readthedocs doesn't like this yet
+    version: 3.8
   install:
     - requirements: docs/requirements.txt
     - method: pip
