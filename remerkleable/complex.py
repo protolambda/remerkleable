@@ -668,8 +668,12 @@ class Container(ComplexView):
                 raise Exception("cannot have both a backing and elements to init List")
             return super().__new__(cls, backing=backing, hook=hook, **kwargs)
 
+        diff = set(kwargs.keys()).difference(set(cls.fields().keys()))
+        if len(diff) > 0:
+            raise AttributeError(f'The field names {diff} are not defined in {cls}')
+
         input_nodes = []
-        for i, (fkey, ftyp) in enumerate(cls.fields().items()):
+        for fkey, ftyp in cls.fields().items():
             fnode: Node
             if fkey in kwargs:
                 finput = kwargs.pop(fkey)
