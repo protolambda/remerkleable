@@ -164,6 +164,12 @@ def test_container():
     except AttributeError:
         pass
 
+    try:
+        Foo(wrong_field_name=100)
+        assert False
+    except AttributeError:
+        pass
+
 
 def test_container_unpack():
     class Foo(Container):
