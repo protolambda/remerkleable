@@ -1,6 +1,12 @@
 Changelog
 ==========
 
+v0.1.15
+--------
+
+- Fix release branch
+- Update readthedocs for py 3.8 support
+
 v0.1.14
 --------
 
