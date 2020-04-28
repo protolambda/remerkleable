@@ -668,10 +668,6 @@ class Container(ComplexView):
                 raise Exception("cannot have both a backing and elements to init List")
             return super().__new__(cls, backing=backing, hook=hook, **kwargs)
 
-        diff = set(kwargs.keys()).difference(set(cls.fields().keys()))
-        if len(diff) > 0:
-            raise AttributeError(f'The field names {diff} are not defined in {cls}')
-
         input_nodes = []
         for fkey, ftyp in cls.fields().items():
             fnode: Node
@@ -684,6 +680,9 @@ class Container(ComplexView):
             else:
                 fnode = ftyp.default_node()
             input_nodes.append(fnode)
+        # check if any keys are remaining to catch unrecognized keys
+        if len(kwargs) > 0:
+            raise AttributeError(f'The field names [{"".join(kwargs.keys())}] are not defined in {cls}')
         backing = subtree_fill_to_contents(input_nodes, cls.tree_depth())
         out = super().__new__(cls, backing=backing, hook=hook, **kwargs)
         return out
