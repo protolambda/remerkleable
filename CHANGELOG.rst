@@ -1,6 +1,11 @@
 Changelog
 ==========
 
+v0.1.14
+--------
+
+- Containers now check for unrecognized attribute inputs
+
 v0.1.13
 --------
 
