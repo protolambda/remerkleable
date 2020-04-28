@@ -684,7 +684,7 @@ class Container(ComplexView):
         if len(kwargs) > 0:
             raise AttributeError(f'The field names [{"".join(kwargs.keys())}] are not defined in {cls}')
         backing = subtree_fill_to_contents(input_nodes, cls.tree_depth())
-        out = super().__new__(cls, backing=backing, hook=hook, **kwargs)
+        out = super().__new__(cls, backing=backing, hook=hook)
         return out
 
     def __init_subclass__(cls, *args, **kwargs):
