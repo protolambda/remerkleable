@@ -55,6 +55,9 @@ class boolean(int, BasicView):
         return "boolean"
 
 
+T = TypeVar('T', bound="uint")
+
+
 class uint(int, BasicView):
     def __new__(cls, value: int):
         if value < 0:
@@ -64,19 +67,19 @@ class uint(int, BasicView):
             raise ValueError(f"value out of bounds for {cls}")
         return super().__new__(cls, value)
 
-    def __add__(self, other):
+    def __add__(self: T, other: T) -> T:
         return self.__class__(super().__add__(self.__class__.coerce_view(other)))
 
-    def __sub__(self, other):
+    def __sub__(self: T, other: T) -> T:
         return self.__class__(super().__sub__(self.__class__.coerce_view(other)))
 
-    def __mul__(self, other):
+    def __mul__(self: T, other: T) -> T:
         return self.__class__(super().__mul__(self.__class__.coerce_view(other)))
 
-    def __floordiv__(self, other):  # Better known as "//"
+    def __floordiv__(self: T, other: T) -> T:  # Better known as "//"
         return self.__class__(super().__floordiv__(self.__class__.coerce_view(other)))
 
-    def __truediv__(self, other):
+    def __truediv__(self: T, other: T) -> T:
         raise OperationNotSupported(f"non-integer division '{self} / {other}' "
                                     f"is not valid for {self.__class__.type_repr()} type")
 
