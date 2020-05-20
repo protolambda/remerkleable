@@ -1,6 +1,11 @@
 Changelog
 ==========
 
+v0.1.16
+--------
+
+- Bare object handling: `cls.from_obj` and `value.to_obj`, to encode and decode json/yaml into remerkleable types.
+
 v0.1.15
 --------
 

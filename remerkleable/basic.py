@@ -145,17 +145,26 @@ class uint64(uint):
     def type_byte_length(cls) -> int:
         return 8
 
+    # JSON encoder should be able to handle uint64, converting it to a string if necessary.
+    # no "to_obj" here.
+
 
 class uint128(uint):
     @classmethod
     def type_byte_length(cls) -> int:
         return 16
 
+    def to_obj(self) -> ObjType:
+        return "0x" + self.encode_bytes().hex()
+
 
 class uint256(uint):
     @classmethod
     def type_byte_length(cls) -> int:
         return 32
+
+    def to_obj(self) -> ObjType:
+        return "0x" + self.encode_bytes().hex()
 
 
 class bit(boolean):

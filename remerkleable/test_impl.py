@@ -9,6 +9,8 @@ from remerkleable.byte_arrays import ByteVector, ByteList
 from remerkleable.core import TypeDef, View, ObjType
 from hashlib import sha256
 
+import json
+
 import pytest
 
 
@@ -122,8 +124,8 @@ test_data = [
     ("uint32 01234567", uint32, uint32(0x01234567), "67452301", chunk("67452301"), 0x01234567),
     ("uint64 0000000000000000", uint64, uint64(0x00000000), "0000000000000000", chunk("0000000000000000"), 0),
     ("uint64 0123456789abcdef", uint64, uint64(0x0123456789abcdef), "efcdab8967452301", chunk("efcdab8967452301"), 0x0123456789abcdef),
-    ("uint128 00000000000000000000000000000000", uint128, uint128(0), "00000000000000000000000000000000", chunk("00000000000000000000000000000000"), 0),
-    ("uint128 11223344556677880123456789abcdef", uint128, uint128(0x11223344556677880123456789abcdef), "efcdab89674523018877665544332211", chunk("efcdab89674523018877665544332211"), 0x11223344556677880123456789abcdef),
+    ("uint128 00000000000000000000000000000000", uint128, uint128(0), "00000000000000000000000000000000", chunk("00000000000000000000000000000000"), '0x00000000000000000000000000000000'),
+    ("uint128 11223344556677880123456789abcdef", uint128, uint128(0x11223344556677880123456789abcdef), "efcdab89674523018877665544332211", chunk("efcdab89674523018877665544332211"), '0xefcdab89674523018877665544332211'),
     ("bytes48", Vector[byte, 48], Vector[byte, 48](*range(48)), "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f",
      h("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f", "202122232425262728292a2b2c2d2e2f00000000000000000000000000000000"), tuple(range(48))),
     ("raw bytes48", ByteVector[48], ByteVector[48](*range(48)), "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f",
@@ -185,7 +187,11 @@ test_data = [
      "adc0000000000000000000000000000000000000000000000000000000000000"
      "ffee000000000000000000000000000000000000000000000000000000000000",
      h(merge(h(h(chunk("bbaa"), chunk("adc0")), h(chunk("ffee"), chunk(""))), zero_hashes[2:5]), chunk("03")),
-     [0xaabb, 0xc0ad, 0xeeff]
+     [
+         "0xbbaa000000000000000000000000000000000000000000000000000000000000",
+         "0xadc0000000000000000000000000000000000000000000000000000000000000",
+         "0xffee000000000000000000000000000000000000000000000000000000000000",
+     ]
      ),
     ("uint256 list long", List[uint256, 128], List[uint256, 128](i for i in range(1, 20)),
      "".join([i.to_bytes(length=32, byteorder='little').hex() for i in range(1, 20)]),
@@ -210,7 +216,7 @@ test_data = [
              )
          ),
          zero_hashes[5:7]), chunk("13")),  # 128 chunks = 7 deep
-     list(range(1, 20)),
+     ['0x' + i.to_bytes(length=32, byteorder='little').hex() for i in range(1, 20)],
      ),
     ("fixedTestStruct", FixedTestStruct, FixedTestStruct(A=0xab, B=0xaabbccdd00112233, C=0x12345678), "ab33221100ddccbbaa78563412",
      h(h(chunk("ab"), chunk("33221100ddccbbaa")), h(chunk("78563412"), chunk(""))), {'A': 0xab, 'B': 0xaabbccdd00112233, 'C': 0x12345678}),
@@ -330,6 +336,17 @@ def test_to_obj(name: str, typ: Type[View], value: View, serialized: str, root: 
 @pytest.mark.parametrize("name, typ, value, serialized, root, obj", test_data)
 def test_from_obj(name: str, typ: Type[View], value: View, serialized: str, root: str, obj: ObjType):
     assert typ.from_obj(obj) == value
+
+
+@pytest.mark.parametrize("name, typ, value, serialized, root, obj", test_data)
+def test_json_dump(name: str, typ: Type[View], value: View, serialized: str, root: str, obj: ObjType):
+    assert json.dumps(value.to_obj()) == json.dumps(obj)
+
+
+@pytest.mark.parametrize("name, typ, value, serialized, root, obj", test_data)
+def test_json_load(name: str, typ: Type[View], value: View, serialized: str, root: str, obj: ObjType):
+    # Bigger round trip: check if a json-like obj can be parsed correctly.
+    assert value.from_obj(json.loads(json.dumps(obj))).to_obj() == obj
 
 
 @pytest.mark.parametrize("name, typ, value, serialized, root, obj", test_data)
