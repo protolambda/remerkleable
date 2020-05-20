@@ -1,5 +1,5 @@
 from typing import Any, TypeVar, Type
-from remerkleable.core import BasicView, View
+from remerkleable.core import BasicView, View, ObjType, ObjParseException
 
 V = TypeVar('V', bound=View)
 
@@ -51,6 +51,15 @@ class boolean(int, BasicView):
         return cls(bytez != b"\x00")
 
     @classmethod
+    def from_obj(cls: Type[V], obj: ObjType) -> V:
+        if not isinstance(obj, bool):
+            raise ObjParseException(f"obj '{obj}' is not a bool")
+        return cls(obj)
+
+    def to_obj(self) -> ObjType:
+        return bool(self)
+
+    @classmethod
     def type_repr(cls) -> str:
         return "boolean"
 
@@ -94,6 +103,19 @@ class uint(int, BasicView):
 
     def encode_bytes(self) -> bytes:
         return self.to_bytes(length=self.__class__.type_byte_length(), byteorder='little')
+
+    @classmethod
+    def from_obj(cls: Type[V], obj: ObjType) -> V:
+        if not isinstance(obj, (int, str)):
+            raise ObjParseException(f"obj '{obj}' is not an int or str")
+        if isinstance(obj, str):
+            if obj.startswith('0x'):
+                return cls.decode_bytes(bytes.fromhex(obj[2:]))
+            obj = int(obj)
+        return cls(obj)
+
+    def to_obj(self) -> ObjType:
+        return int(self)
 
     @classmethod
     def type_repr(cls) -> str:

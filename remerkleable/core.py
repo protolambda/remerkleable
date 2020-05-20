@@ -1,4 +1,5 @@
-from typing import Callable, Optional, Any, cast, List as PyList, BinaryIO, TypeVar, Type, Protocol, runtime_checkable
+from typing import Callable, Optional, Any, cast, List as PyList, BinaryIO,\
+    TypeVar, Type, Protocol, runtime_checkable, Union
 
 # noinspection PyUnresolvedReferences
 from typing import _ProtocolMeta
@@ -16,6 +17,13 @@ V = TypeVar('V', bound="View")
 class TypeDefMeta(_ProtocolMeta):
     def __truediv__(self, other) -> "Path":
         return Path.from_raw_path(anchor=cast(Type[View], self), path=[other])
+
+
+ObjType = Union[dict, list, tuple, str, int, bool, None, "ObjType"]
+
+
+class ObjParseException(Exception):
+    pass
 
 
 @runtime_checkable
@@ -58,6 +66,10 @@ class TypeDef(Protocol, metaclass=TypeDefMeta):
 
     @classmethod
     def deserialize(cls: Type[V], stream: BinaryIO, scope: int) -> V:
+        ...
+
+    @classmethod
+    def from_obj(cls: Type[V], obj: ObjType) -> V:
         ...
 
     @classmethod
@@ -161,6 +173,9 @@ class View(TypeDef):
         out = self.encode_bytes()
         stream.write(out)
         return len(out)
+
+    def to_obj(self) -> ObjType:
+        raise NotImplementedError
 
     def navigate_view(self, key: Any) -> "View":
         raise Exception(f"cannot view-navigate into {self}, key: '{key}'")

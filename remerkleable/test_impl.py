@@ -6,7 +6,7 @@ from remerkleable.complex import Container, Vector, List
 from remerkleable.basic import boolean, bit, byte, uint8, uint16, uint32, uint64, uint128, uint256
 from remerkleable.bitfields import Bitvector, Bitlist
 from remerkleable.byte_arrays import ByteVector, ByteList
-from remerkleable.core import TypeDef, View
+from remerkleable.core import TypeDef, View, ObjType
 from hashlib import sha256
 
 import pytest
@@ -77,82 +77,90 @@ def merge(a: str, branch: Iterable[str]) -> str:
 
 
 test_data = [
-    ("bit F", bit, bit(False), "00", chunk("00")),
-    ("bit T", bit, bit(True), "01", chunk("01")),
-    ("boolean F", boolean, boolean(False), "00", chunk("00")),
-    ("boolean T", boolean, boolean(True), "01", chunk("01")),
-    ("bitlist empty", Bitlist[8], Bitlist[8](), "01", h(chunk(""), chunk("00"))),
-    ("bitvector TTFTFTFF", Bitvector[8], Bitvector[8](1, 1, 0, 1, 0, 1, 0, 0), "2b", chunk("2b")),
-    ("bitlist TTFTFTFF", Bitlist[8], Bitlist[8](1, 1, 0, 1, 0, 1, 0, 0), "2b01", h(chunk("2b"), chunk("08"))),
-    ("bitvector FTFT", Bitvector[4], Bitvector[4](0, 1, 0, 1), "0a", chunk("0a")),
-    ("bitlist FTFT", Bitlist[4], Bitlist[4](0, 1, 0, 1), "1a", h(chunk("0a"), chunk("04"))),
-    ("bitvector FTF", Bitvector[3], Bitvector[3](0, 1, 0), "02", chunk("02")),
-    ("bitlist FTF", Bitlist[3], Bitlist[3](0, 1, 0), "0a", h(chunk("02"), chunk("03"))),
-    ("bitvector TFTFFFTTFT", Bitvector[10], Bitvector[10](1, 0, 1, 0, 0, 0, 1, 1, 0, 1), "c502", chunk("c502")),
-    ("bitlist TFTFFFTTFT", Bitlist[16], Bitlist[16](1, 0, 1, 0, 0, 0, 1, 1, 0, 1), "c506", h(chunk("c502"), chunk("0A"))),
+    ("bit F", bit, bit(False), "00", chunk("00"), False),
+    ("bit T", bit, bit(True), "01", chunk("01"), True),
+    ("boolean F", boolean, boolean(False), "00", chunk("00"), False),
+    ("boolean T", boolean, boolean(True), "01", chunk("01"), True),
+    ("bitlist empty", Bitlist[8], Bitlist[8](), "01", h(chunk(""), chunk("00")), "0x01"),
+    ("bitvector TTFTFTFF", Bitvector[8], Bitvector[8](1, 1, 0, 1, 0, 1, 0, 0), "2b", chunk("2b"), "0x2b"),
+    ("bitlist TTFTFTFF", Bitlist[8], Bitlist[8](1, 1, 0, 1, 0, 1, 0, 0), "2b01", h(chunk("2b"), chunk("08")), "0x2b01"),
+    ("bitvector FTFT", Bitvector[4], Bitvector[4](0, 1, 0, 1), "0a", chunk("0a"), "0x0a"),
+    ("bitlist FTFT", Bitlist[4], Bitlist[4](0, 1, 0, 1), "1a", h(chunk("0a"), chunk("04")), "0x1a"),
+    ("bitvector FTF", Bitvector[3], Bitvector[3](0, 1, 0), "02", chunk("02"), "0x02"),
+    ("bitlist FTF", Bitlist[3], Bitlist[3](0, 1, 0), "0a", h(chunk("02"), chunk("03")), "0x0a"),
+    ("bitvector TFTFFFTTFT", Bitvector[10], Bitvector[10](1, 0, 1, 0, 0, 0, 1, 1, 0, 1),
+     "c502", chunk("c502"), "0xc502"),
+    ("bitlist TFTFFFTTFT", Bitlist[16], Bitlist[16](1, 0, 1, 0, 0, 0, 1, 1, 0, 1),
+     "c506", h(chunk("c502"), chunk("0A")), "0xc506"),
     ("bitvector TFTFFFTTFTFFFFTT", Bitvector[16], Bitvector[16](1, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0, 0, 0, 0, 1, 1),
-     "c5c2", chunk("c5c2")),
+     "c5c2", chunk("c5c2"), "0xc5c2"),
     ("bitlist TFTFFFTTFTFFFFTT", Bitlist[16], Bitlist[16](1, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0, 0, 0, 0, 1, 1),
-     "c5c201", h(chunk("c5c2"), chunk("10"))),
+     "c5c201", h(chunk("c5c2"), chunk("10")), "0xc5c201"),
     ("long bitvector", Bitvector[512], Bitvector[512](1 for i in range(512)),
-     "ff" * 64, h("ff" * 32, "ff" * 32)),
+     "ff" * 64, h("ff" * 32, "ff" * 32), "0x" + ("ff" * 64)),
     ("long bitlist", Bitlist[512], Bitlist[512](1),
-     "03", h(h(chunk("01"), chunk("")), chunk("01"))),
+     "03", h(h(chunk("01"), chunk("")), chunk("01")), "0x03"),
     ("long bitlist", Bitlist[512], Bitlist[512](1 for i in range(512)),
-     "ff" * 64 + "01", h(h("ff" * 32, "ff" * 32), chunk("0002"))),
+     "ff" * 64 + "01", h(h("ff" * 32, "ff" * 32), chunk("0002")), "0x" + ("ff" * 64 + "01")),
     ("odd bitvector", Bitvector[513], Bitvector[513](1 for i in range(513)),
-     "ff" * 64 + "01", h(h("ff" * 32, "ff" * 32), h(chunk("01"), chunk("")))),
+     "ff" * 64 + "01", h(h("ff" * 32, "ff" * 32), h(chunk("01"), chunk(""))), "0x" + ("ff" * 64) + "01"),
     ("odd bitlist", Bitlist[513], Bitlist[513](1 for i in range(513)),
-     "ff" * 64 + "03", h(h(h("ff" * 32, "ff" * 32), h(chunk("01"), chunk(""))), chunk("0102"))),
-    ("uint8 00", uint8, uint8(0x00), "00", chunk("00")),
-    ("uint8 01", uint8, uint8(0x01), "01", chunk("01")),
-    ("uint8 ab", uint8, uint8(0xab), "ab", chunk("ab")),
-    ("byte 00", byte, byte(0x00), "00", chunk("00")),
-    ("byte 01", byte, byte(0x01), "01", chunk("01")),
-    ("byte ab", byte, byte(0xab), "ab", chunk("ab")),
-    ("uint16 0000", uint16, uint16(0x0000), "0000", chunk("0000")),
-    ("uint16 abcd", uint16, uint16(0xabcd), "cdab", chunk("cdab")),
-    ("uint32 00000000", uint32, uint32(0x00000000), "00000000", chunk("00000000")),
-    ("uint32 01234567", uint32, uint32(0x01234567), "67452301", chunk("67452301")),
-    ("small (4567, 0123)", SmallTestStruct, SmallTestStruct(A=0x4567, B=0x0123), "67452301", h(chunk("6745"), chunk("2301"))),
-    ("small [4567, 0123]::2", Vector[uint16, 2], Vector[uint16, 2](uint16(0x4567), uint16(0x0123)), "67452301", chunk("67452301")),
-    ("uint32 01234567", uint32, uint32(0x01234567), "67452301", chunk("67452301")),
-    ("uint64 0000000000000000", uint64, uint64(0x00000000), "0000000000000000", chunk("0000000000000000")),
-    ("uint64 0123456789abcdef", uint64, uint64(0x0123456789abcdef), "efcdab8967452301", chunk("efcdab8967452301")),
-    ("uint128 00000000000000000000000000000000", uint128, uint128(0), "00000000000000000000000000000000", chunk("00000000000000000000000000000000")),
-    ("uint128 11223344556677880123456789abcdef", uint128, uint128(0x11223344556677880123456789abcdef), "efcdab89674523018877665544332211", chunk("efcdab89674523018877665544332211")),
+     "ff" * 64 + "03", h(h(h("ff" * 32, "ff" * 32), h(chunk("01"), chunk(""))), chunk("0102")),
+     "0x" + ("ff" * 64) + "03"),
+    ("uint8 00", uint8, uint8(0x00), "00", chunk("00"), 0),
+    ("uint8 01", uint8, uint8(0x01), "01", chunk("01"), 1),
+    ("uint8 ab", uint8, uint8(0xab), "ab", chunk("ab"), 0xab),
+    ("byte 00", byte, byte(0x00), "00", chunk("00"), 0),
+    ("byte 01", byte, byte(0x01), "01", chunk("01"), 1),
+    ("byte ab", byte, byte(0xab), "ab", chunk("ab"), 0xab),
+    ("uint16 0000", uint16, uint16(0x0000), "0000", chunk("0000"), 0),
+    ("uint16 abcd", uint16, uint16(0xabcd), "cdab", chunk("cdab"), 0xabcd),
+    ("uint32 00000000", uint32, uint32(0x00000000), "00000000", chunk("00000000"), 0),
+    ("uint32 01234567", uint32, uint32(0x01234567), "67452301", chunk("67452301"), 0x01234567),
+    ("small (4567, 0123)", SmallTestStruct, SmallTestStruct(A=0x4567, B=0x0123), "67452301", h(chunk("6745"), chunk("2301")), {'A': 0x4567, 'B': 0x0123}),
+    ("small [4567, 0123]::2", Vector[uint16, 2], Vector[uint16, 2](uint16(0x4567), uint16(0x0123)), "67452301", chunk("67452301"), (0x4567, 0x0123)),
+    ("uint32 01234567", uint32, uint32(0x01234567), "67452301", chunk("67452301"), 0x01234567),
+    ("uint64 0000000000000000", uint64, uint64(0x00000000), "0000000000000000", chunk("0000000000000000"), 0),
+    ("uint64 0123456789abcdef", uint64, uint64(0x0123456789abcdef), "efcdab8967452301", chunk("efcdab8967452301"), 0x0123456789abcdef),
+    ("uint128 00000000000000000000000000000000", uint128, uint128(0), "00000000000000000000000000000000", chunk("00000000000000000000000000000000"), 0),
+    ("uint128 11223344556677880123456789abcdef", uint128, uint128(0x11223344556677880123456789abcdef), "efcdab89674523018877665544332211", chunk("efcdab89674523018877665544332211"), 0x11223344556677880123456789abcdef),
     ("bytes48", Vector[byte, 48], Vector[byte, 48](*range(48)), "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f",
-     h("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f", "202122232425262728292a2b2c2d2e2f00000000000000000000000000000000")),
+     h("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f", "202122232425262728292a2b2c2d2e2f00000000000000000000000000000000"), tuple(range(48))),
     ("raw bytes48", ByteVector[48], ByteVector[48](*range(48)), "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f",
-     h("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f", "202122232425262728292a2b2c2d2e2f00000000000000000000000000000000")),
-    ("small empty bytelist", List[byte, 10], List[byte, 10](), "", h(chunk(""), chunk("00"))),
-    ("big empty bytelist", List[byte, 2048], List[byte, 2048](), "", h(zero_hashes[6], chunk("00"))),
-    ("raw small empty bytelist", ByteList[10], ByteList[10](), "", h(chunk(""), chunk("00"))),
-    ("raw big empty bytelist", ByteList[2048], ByteList[2048](), "", h(zero_hashes[6], chunk("00"))),
+     h("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f", "202122232425262728292a2b2c2d2e2f00000000000000000000000000000000"),
+     "0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f"),
+    ("small empty bytelist", List[byte, 10], List[byte, 10](), "", h(chunk(""), chunk("00")), []),
+    ("big empty bytelist", List[byte, 2048], List[byte, 2048](), "", h(zero_hashes[6], chunk("00")), []),
+    ("raw small empty bytelist", ByteList[10], ByteList[10](), "", h(chunk(""), chunk("00")), "0x"),
+    ("raw big empty bytelist", ByteList[2048], ByteList[2048](), "", h(zero_hashes[6], chunk("00")), "0x"),
     ("bytelist 7", List[byte, 7], List[byte, 7](*range(7)), "00010203040506",
-     h(chunk("00010203040506"), chunk("07"))),
+     h(chunk("00010203040506"), chunk("07")), list(range(7))),
     ("raw bytelist 7", ByteList[7], ByteList[7](*range(7)), "00010203040506",
-     h(chunk("00010203040506"), chunk("07"))),
+     h(chunk("00010203040506"), chunk("07")), "0x00010203040506"),
     ("bytelist 50", List[byte, 50], List[byte, 50](*range(50)), "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f3031",
-     h(h("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f", "202122232425262728292a2b2c2d2e2f30310000000000000000000000000000"), chunk("32"))),
+     h(h("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f", "202122232425262728292a2b2c2d2e2f30310000000000000000000000000000"), chunk("32")), list(range(50))),
     ("raw bytelist 50", ByteList[50], ByteList[50](*range(50)), "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f3031",
-     h(h("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f", "202122232425262728292a2b2c2d2e2f30310000000000000000000000000000"), chunk("32"))),
+     h(h("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f", "202122232425262728292a2b2c2d2e2f30310000000000000000000000000000"), chunk("32")),
+     "0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f3031"),
     ("bytelist 6/256", List[byte, 256], List[byte, 256](*range(6)), "000102030405",
-     h(h(h(h(chunk("000102030405"), zero_hashes[0]), zero_hashes[1]), zero_hashes[2]), chunk("06"))),
-    ("raw bytelist 6/256", ByteList[256], List[byte, 256](*range(6)), "000102030405",
-     h(h(h(h(chunk("000102030405"), zero_hashes[0]), zero_hashes[1]), zero_hashes[2]), chunk("06"))),
+     h(h(h(h(chunk("000102030405"), zero_hashes[0]), zero_hashes[1]), zero_hashes[2]), chunk("06")), list(range(6))),
+    ("raw bytelist 6/256", ByteList[256], ByteList[256](*range(6)), "000102030405",
+     h(h(h(h(chunk("000102030405"), zero_hashes[0]), zero_hashes[1]), zero_hashes[2]), chunk("06")), "0x000102030405"),
     ("sig", Vector[byte, 96], Vector[byte, 96](*sig_test_data),
      "0100000000000000000000000000000000000000000000000000000000000000"
      "0200000000000000000000000000000000000000000000000000000000000000"
      "03000000000000000000000000000000000000000000000000000000000000ff",
      h(h(chunk("01"), chunk("02")),
-       h("03000000000000000000000000000000000000000000000000000000000000ff", chunk("")))),
+       h("03000000000000000000000000000000000000000000000000000000000000ff", chunk(""))), tuple(sig_test_data)),
     ("raw sig", ByteVector[96], ByteVector[96](*sig_test_data),
      "0100000000000000000000000000000000000000000000000000000000000000"
      "0200000000000000000000000000000000000000000000000000000000000000"
      "03000000000000000000000000000000000000000000000000000000000000ff",
      h(h(chunk("01"), chunk("02")),
-       h("03000000000000000000000000000000000000000000000000000000000000ff", chunk("")))),
+       h("03000000000000000000000000000000000000000000000000000000000000ff", chunk(""))), "0x"
+     "0100000000000000000000000000000000000000000000000000000000000000"
+     "0200000000000000000000000000000000000000000000000000000000000000"
+     "03000000000000000000000000000000000000000000000000000000000000ff",),
     ("3 sigs", Vector[ByteVector[96], 3], Vector[ByteVector[96], 3](
         [1] + [0 for i in range(95)],
         [2] + [0 for i in range(95)],
@@ -160,20 +168,24 @@ test_data = [
     ),
      "01" + ("00" * 95) + "02" + ("00" * 95) + "03" + ("00" * 95),
      h(h(h(h(chunk("01"), chunk("")), zero_hashes[1]), h(h(chunk("02"), chunk("")), zero_hashes[1])),
-       h(h(h(chunk("03"), chunk("")), zero_hashes[1]), chunk("")))),
-    ("singleFieldTestStruct", SingleFieldTestStruct, SingleFieldTestStruct(A=0xab), "ab", chunk("ab")),
-    ("uint16 list", List[uint16, 32], List[uint16, 32](uint16(0xaabb), uint16(0xc0ad), uint16(0xeeff)), "bbaaadc0ffee",
-     h(h(chunk("bbaaadc0ffee"), chunk("")), chunk("03000000"))  # max length: 32 * 2 = 64 bytes = 2 chunks
+       h(h(h(chunk("03"), chunk("")), zero_hashes[1]), chunk(""))),
+     ("0x01" + ("00" * 95), "0x02" + ("00" * 95), "0x03" + ("00" * 95)),
      ),
+    ("singleFieldTestStruct", SingleFieldTestStruct, SingleFieldTestStruct(A=0xab), "ab", chunk("ab"), {'A': 0xab}),
+    ("uint16 list", List[uint16, 32], List[uint16, 32](uint16(0xaabb), uint16(0xc0ad), uint16(0xeeff)), "bbaaadc0ffee",
+     h(h(chunk("bbaaadc0ffee"), chunk("")), chunk("03000000")),  # max length: 32 * 2 = 64 bytes = 2 chunks
+     [0xaabb, 0xc0ad, 0xeeff]),
     ("uint32 list", List[uint32, 128], List[uint32, 128](uint32(0xaabb), uint32(0xc0ad), uint32(0xeeff)), "bbaa0000adc00000ffee0000",
      # max length: 128 * 4 = 512 bytes = 16 chunks
-     h(merge(chunk("bbaa0000adc00000ffee0000"), zero_hashes[0:4]), chunk("03"))
+     h(merge(chunk("bbaa0000adc00000ffee0000"), zero_hashes[0:4]), chunk("03")),
+     [0xaabb, 0xc0ad, 0xeeff]  # still the same, no padding, just literals
      ),
     ("uint256 list", List[uint256, 32], List[uint256, 32](uint256(0xaabb), uint256(0xc0ad), uint256(0xeeff)),
      "bbaa000000000000000000000000000000000000000000000000000000000000"
      "adc0000000000000000000000000000000000000000000000000000000000000"
      "ffee000000000000000000000000000000000000000000000000000000000000",
-     h(merge(h(h(chunk("bbaa"), chunk("adc0")), h(chunk("ffee"), chunk(""))), zero_hashes[2:5]), chunk("03"))
+     h(merge(h(h(chunk("bbaa"), chunk("adc0")), h(chunk("ffee"), chunk(""))), zero_hashes[2:5]), chunk("03")),
+     [0xaabb, 0xc0ad, 0xeeff]
      ),
     ("uint256 list long", List[uint256, 128], List[uint256, 128](i for i in range(1, 20)),
      "".join([i.to_bytes(length=32, byteorder='little').hex() for i in range(1, 20)]),
@@ -197,14 +209,16 @@ test_data = [
                  zero_hashes[3]
              )
          ),
-         zero_hashes[5:7]), chunk("13"))  # 128 chunks = 7 deep
+         zero_hashes[5:7]), chunk("13")),  # 128 chunks = 7 deep
+     list(range(1, 20)),
      ),
     ("fixedTestStruct", FixedTestStruct, FixedTestStruct(A=0xab, B=0xaabbccdd00112233, C=0x12345678), "ab33221100ddccbbaa78563412",
-     h(h(chunk("ab"), chunk("33221100ddccbbaa")), h(chunk("78563412"), chunk("")))),
+     h(h(chunk("ab"), chunk("33221100ddccbbaa")), h(chunk("78563412"), chunk(""))), {'A': 0xab, 'B': 0xaabbccdd00112233, 'C': 0x12345678}),
     ("varTestStruct nil", VarTestStruct, VarTestStruct(A=0xabcd, C=0xff), "cdab07000000ff",
-     h(h(chunk("cdab"), h(zero_hashes[6], chunk("00000000"))), h(chunk("ff"), chunk("")))),
+     h(h(chunk("cdab"), h(zero_hashes[6], chunk("00000000"))), h(chunk("ff"), chunk(""))), {'A': 0xabcd, 'B': [], 'C': 0xff}),
     ("varTestStruct empty", VarTestStruct, VarTestStruct(A=0xabcd, B=List[uint16, 1024](), C=0xff), "cdab07000000ff",
-     h(h(chunk("cdab"), h(zero_hashes[6], chunk("00000000"))), h(chunk("ff"), chunk("")))),  # log2(1024*2/32)= 6 deep
+     h(h(chunk("cdab"), h(zero_hashes[6], chunk("00000000"))), h(chunk("ff"), chunk(""))),  # log2(1024*2/32)= 6 deep
+     {'A': 0xabcd, 'B': [], 'C': 0xff}),
     ("varTestStruct some", VarTestStruct, VarTestStruct(A=0xabcd, B=List[uint16, 1024](1, 2, 3), C=0xff),
      "cdab07000000ff010002000300",
      h(
@@ -219,7 +233,7 @@ test_data = [
              )
          ),
          h(chunk("ff"), chunk(""))
-    )),
+    ), {'A': 0xabcd, 'B': [1, 2, 3], 'C': 0xff}),
     ("complexTestStruct", ComplexTestStruct,
      ComplexTestStruct(
          A=0xaabb,
@@ -288,30 +302,56 @@ test_data = [
                  chunk("")
              )
          )
-     ))
+     ), {
+        'A': 0xaabb,
+        'B': [0x1122, 0x3344],
+        'C': 0xff,
+        'D': list(b"foobar"),
+        'E': {'A': 0xabcd, 'B': [1, 2, 3], 'C': 0xff},
+        'F': (
+            {'A': 0xcc, 'B': 0x4242424242424242, 'C': 0x13371337},
+            {'A': 0xdd, 'B': 0x3333333333333333, 'C': 0xabcdabcd},
+            {'A': 0xee, 'B': 0x4444444444444444, 'C': 0x00112233},
+            {'A': 0xff, 'B': 0x5555555555555555, 'C': 0x44556677},
+        ),
+        'G': (
+            {'A': 0xdead, 'B': [1, 2, 3], 'C': 0x11},
+            {'A': 0xbeef, 'B': [4, 5, 6], 'C': 0x22},
+        ),
+     })
 ]
 
 
-@pytest.mark.parametrize("name, typ, value, serialized, root", test_data)
-def test_type_bounds(name: str, typ: Type[View], value: View, serialized: str, root: str):
+@pytest.mark.parametrize("name, typ, value, serialized, root, obj", test_data)
+def test_to_obj(name: str, typ: Type[View], value: View, serialized: str, root: str, obj: ObjType):
+    assert value.to_obj() == obj
+
+
+@pytest.mark.parametrize("name, typ, value, serialized, root, obj", test_data)
+def test_from_obj(name: str, typ: Type[View], value: View, serialized: str, root: str, obj: ObjType):
+    assert typ.from_obj(obj) == value
+
+
+@pytest.mark.parametrize("name, typ, value, serialized, root, obj", test_data)
+def test_type_bounds(name: str, typ: Type[View], value: View, serialized: str, root: str, obj: ObjType):
     byte_len = len(bytes.fromhex(serialized))
     assert typ.min_byte_length() <= byte_len <= typ.max_byte_length()
     if typ.is_fixed_byte_length():
         assert byte_len == typ.type_byte_length()
 
 
-@pytest.mark.parametrize("name, typ, value, serialized, root", test_data)
-def test_value_byte_length(name: str, typ: Type[View], value: View, serialized: str, root: str):
+@pytest.mark.parametrize("name, typ, value, serialized, root, obj", test_data)
+def test_value_byte_length(name: str, typ: Type[View], value: View, serialized: str, root: str, obj: ObjType):
     assert value.value_byte_length() == len(bytes.fromhex(serialized))
 
 
-@pytest.mark.parametrize("name, typ, value, serialized, root", test_data)
-def test_typedef(name: str, typ: Type[View], value: View, serialized: str, root: str):
+@pytest.mark.parametrize("name, typ, value, serialized, root, obj", test_data)
+def test_typedef(name: str, typ: Type[View], value: View, serialized: str, root: str, obj: ObjType):
     assert issubclass(typ, TypeDef)
 
 
-@pytest.mark.parametrize("name, typ, value, serialized, root", test_data)
-def test_serialize(name: str, typ: Type[View], value: View, serialized: str, root: str):
+@pytest.mark.parametrize("name, typ, value, serialized, root, obj", test_data)
+def test_serialize(name: str, typ: Type[View], value: View, serialized: str, root: str, obj: ObjType):
     stream = io.BytesIO()
     length = value.serialize(stream)
     stream.seek(0)
@@ -320,19 +360,19 @@ def test_serialize(name: str, typ: Type[View], value: View, serialized: str, roo
     assert length*2 == len(serialized)
 
 
-@pytest.mark.parametrize("name, typ, value, serialized, root", test_data)
-def test_encode_bytes(name: str, typ: Type[View], value: View, serialized: str, root: str):
+@pytest.mark.parametrize("name, typ, value, serialized, root, obj", test_data)
+def test_encode_bytes(name: str, typ: Type[View], value: View, serialized: str, root: str, obj: ObjType):
     encoded = value.encode_bytes()
     assert encoded.hex() == serialized
 
 
-@pytest.mark.parametrize("name, typ, value, serialized, root", test_data)
-def test_hash_tree_root(name: str, typ: Type[View], value: View, serialized: str, root: str):
+@pytest.mark.parametrize("name, typ, value, serialized, root, obj", test_data)
+def test_hash_tree_root(name: str, typ: Type[View], value: View, serialized: str, root: str, obj: ObjType):
     assert value.hash_tree_root().hex() == root
 
 
-@pytest.mark.parametrize("name, typ, value, serialized, root", test_data)
-def test_deserialize(name: str, typ: Type[View], value: View, serialized: str, root: str):
+@pytest.mark.parametrize("name, typ, value, serialized, root, obj", test_data)
+def test_deserialize(name: str, typ: Type[View], value: View, serialized: str, root: str, obj: ObjType):
     stream = io.BytesIO()
     bytez = bytes.fromhex(serialized)
     stream.write(bytez)
@@ -341,15 +381,15 @@ def test_deserialize(name: str, typ: Type[View], value: View, serialized: str, r
     assert decoded == value
 
 
-@pytest.mark.parametrize("name, typ, value, serialized, root", test_data)
-def test_decode_bytes(name: str, typ: Type[View], value: View, serialized: str, root: str):
+@pytest.mark.parametrize("name, typ, value, serialized, root, obj", test_data)
+def test_decode_bytes(name: str, typ: Type[View], value: View, serialized: str, root: str, obj: ObjType):
     bytez = bytes.fromhex(serialized)
     decoded = typ.decode_bytes(bytez)
     assert decoded == value
 
 
-@pytest.mark.parametrize("name, typ, value, serialized, root", test_data)
-def test_readonly_iters(name: str, typ: Type[View], value: View, serialized: str, root: str):
+@pytest.mark.parametrize("name, typ, value, serialized, root, obj", test_data)
+def test_readonly_iters(name: str, typ: Type[View], value: View, serialized: str, root: str, obj: ObjType):
     if hasattr(value, 'readonly_iter'):
         r_iter = value.readonly_iter()
         i = 0

@@ -5,7 +5,7 @@ from textwrap import indent
 from collections.abc import Sequence as ColSequence
 from itertools import chain
 import io
-from remerkleable.core import View, BasicTypeDef, BasicView, OFFSET_BYTE_LENGTH, ViewHook
+from remerkleable.core import View, BasicTypeDef, BasicView, OFFSET_BYTE_LENGTH, ViewHook, ObjType, ObjParseException
 from remerkleable.basic import uint256, uint8, uint32
 from remerkleable.tree import Node, subtree_fill_to_length, subtree_fill_to_contents,\
     zero_node, Gindex, PairNode, to_gindex, NavigationError, get_depth
@@ -158,6 +158,13 @@ class MonoSubtreeView(ColSequence, ComplexView):
             temp_dyn_stream.seek(0)
             stream.write(temp_dyn_stream.read(offset))
             return offset
+
+    @classmethod
+    def from_obj(cls: Type[V], obj: ObjType) -> V:
+        if not isinstance(obj, (list, tuple)):
+            raise ObjParseException(f"obj '{obj}' is not a list or tuple")
+        elem_cls = cls.element_cls()
+        return cls(elem_cls.from_obj(el) for el in obj)
 
     @classmethod
     def navigate_type(cls, key: Any) -> Type[View]:
@@ -474,6 +481,9 @@ class List(MonoSubtreeView):
             bytes_per_elem += OFFSET_BYTE_LENGTH
         return bytes_per_elem * cls.limit()
 
+    def to_obj(self) -> ObjType:
+        return list(el.to_obj() for el in self.readonly_iter())
+
 
 class Vector(MonoSubtreeView):
     def __new__(cls, *args, backing: Optional[Node] = None, hook: Optional[ViewHook] = None, **kwargs):
@@ -637,6 +647,9 @@ class Vector(MonoSubtreeView):
         if not elem_cls.is_fixed_byte_length():
             bytes_per_elem += OFFSET_BYTE_LENGTH
         return bytes_per_elem * cls.vector_length()
+
+    def to_obj(self) -> ObjType:
+        return tuple(el.to_obj() for el in self.readonly_iter())
 
 
 Fields = Dict[str, Type[View]]
@@ -863,6 +876,19 @@ class Container(ComplexView):
             temp_dyn_stream.seek(0)
             stream.write(temp_dyn_stream.read(written))
         return written
+
+    @classmethod
+    def from_obj(cls: Type[V], obj: ObjType) -> V:
+        if not isinstance(obj, dict):
+            raise ObjParseException(f"obj '{obj}' is not a dict")
+        fields = cls.fields()
+        for k in obj.keys():
+            if k not in fields:
+                raise ObjParseException(f"obj '{obj}' has unknown key {k}")
+        return cls(**{k: fields[k].from_obj(v) for k, v in obj.items()})
+
+    def to_obj(self) -> ObjType:
+        return {f_k: f_v.to_obj() for f_k, f_v in zip(self.__class__.fields().keys(), self.__iter__())}
 
     @classmethod
     def key_to_static_gindex(cls, key: Any) -> Gindex:

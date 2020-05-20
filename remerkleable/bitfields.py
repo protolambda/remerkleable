@@ -3,7 +3,7 @@ from types import GeneratorType
 from collections.abc import Sequence as ColSequence
 import io
 from remerkleable.core import BackedView, FixedByteLengthViewHelper, \
-    pack_bits_to_chunks, View
+    pack_bits_to_chunks, View, ObjType, ObjParseException
 from remerkleable.tree import Node, PairNode, zero_node, Gindex, to_gindex, Link, RootNode, NavigationError,\
     Root, subtree_fill_to_contents, subtree_fill_to_length, get_depth
 from remerkleable.basic import boolean, uint256
@@ -95,6 +95,19 @@ class BitsView(BackedView, ColSequence):
         stream.write(bytez)
         stream.seek(0)
         return cls.deserialize(stream, len(bytez))
+
+    @classmethod
+    def from_obj(cls: Type[V], obj: ObjType) -> V:
+        if not isinstance(obj, (list, tuple, str)):
+            raise ObjParseException(f"obj '{obj}' is not a list, tuple or str")
+        if isinstance(obj, str):
+            if obj.startswith('0x'):
+                return cls.decode_bytes(bytes.fromhex(obj[2:]))
+            obj = [c == '1' for c in obj]
+        return cls(obj)
+
+    def to_obj(self) -> ObjType:
+        return '0x' + self.encode_bytes().hex()
 
     def navigate_view(self, key: Any) -> View:
         return boolean(self.__getitem__(key))

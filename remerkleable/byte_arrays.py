@@ -2,7 +2,8 @@ from typing import Optional, Any, TypeVar, Type, BinaryIO
 from types import GeneratorType
 from remerkleable.tree import Node, RootNode, Root, subtree_fill_to_contents, get_depth, to_gindex, \
     subtree_fill_to_length, Gindex, PairNode
-from remerkleable.core import View, ViewHook, zero_node, FixedByteLengthViewHelper, pack_bytes_to_chunks
+from remerkleable.core import View, ViewHook, zero_node, FixedByteLengthViewHelper, pack_bytes_to_chunks, ObjType, \
+    ObjParseException
 from remerkleable.basic import byte, uint256
 
 V = TypeVar('V', bound=View)
@@ -55,6 +56,15 @@ class RawBytesView(bytes, View):
 
     def encode_bytes(self) -> bytes:
         return self
+
+    @classmethod
+    def from_obj(cls: Type[V], obj: ObjType) -> V:
+        if not isinstance(obj, (list, tuple, str, bytes)):
+            raise ObjParseException(f"obj '{obj}' is not a list, tuple, str or bytes")
+        return cls(obj)
+
+    def to_obj(self) -> ObjType:
+        return '0x' + self.encode_bytes().hex()
 
     def navigate_view(self, key: Any) -> View:
         return byte(self.__getitem__(key))
