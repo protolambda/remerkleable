@@ -114,21 +114,23 @@ class uint(int, BasicView):
         raise OperationNotSupported(f"non-integer division '{other} / {self}' "
                                     f"is not valid for {self.__class__.type_repr()} right hand type")
 
-    def __pow__ (self, other: int, modulo = None):
+    def __pow__(self, other: int, modulo=None):
         return self.__class__(super().__pow__(other, modulo))  # TODO: stricter argument checks?
 
-    def __rpow__(self, other, modulo = None):
+    def __rpow__(self, other, modulo=None):
         return self.__class__(super().__rpow__(other, modulo))  # TODO: see __pow__
 
-    def __lshift__(self: T, other: int) -> T:
-        return self.__class__(super().__lshift__(other))
+    def __lshift__(self, other: int) -> T:
+        """Left bitshift clips bits at uint boundary"""
+        mask = (1 << (self.type_byte_length() << 3)) - 1
+        return self.__class__(super().__lshift__(int(other)) & mask)
 
     def __rlshift__(self: T, other: int) -> T:
         raise OperationNotSupported(f"{other} << {self} through __rlshift__ is not supported, "
                                     f"{other} must be a uint type with __lshift__")
 
     def __rshift__(self: T, other: int) -> T:
-        return self.__class__(super().__rshift__(other))
+        return self.__class__(super().__rshift__(int(other)))
 
     def __rrshift__(self: T, other: int) -> T:
         raise OperationNotSupported(f"{other} >> {self} through __rrshift__ is not supported, "
@@ -156,7 +158,8 @@ class uint(int, BasicView):
         raise OperationNotSupported(f"Cannot make uint type negative! If intentional, cast to signed int first.")
 
     def __invert__(self: T) -> T:
-        return self.__class__(super().__invert__())
+        mask = (1 << (self.type_byte_length() << 3)) - 1
+        return self.__xor__(mask)
 
     def __pos__(self: T) -> T:
         return self
