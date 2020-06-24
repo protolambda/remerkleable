@@ -114,13 +114,13 @@ class uint(int, BasicView):
         raise OperationNotSupported(f"non-integer division '{other} / {self}' "
                                     f"is not valid for {self.__class__.type_repr()} right hand type")
 
-    def __pow__(self, other: int, modulo=None):
+    def __pow__(self: T, other: int, modulo=None) -> T:
         return self.__class__(super().__pow__(other, modulo))  # TODO: stricter argument checks?
 
-    def __rpow__(self, other, modulo=None):
+    def __rpow__(self: T, other, modulo=None) -> T:
         return self.__class__(super().__rpow__(other, modulo))  # TODO: see __pow__
 
-    def __lshift__(self, other: int) -> T:
+    def __lshift__(self: T, other: int) -> T:
         """Left bitshift clips bits at uint boundary"""
         mask = (1 << (self.type_byte_length() << 3)) - 1
         return self.__class__(super().__lshift__(int(other)) & mask)
