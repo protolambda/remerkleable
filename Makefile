@@ -12,6 +12,7 @@ install:
 
 lint:
 	cd remerkleable && flake8 . --count --exit-zero --max-complexity=15 --max-line-length=127 --statistics
+	mypy remerkleable
 
 clean:
 	rm -rf build dist .pytest_cache *.egg-info
