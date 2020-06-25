@@ -203,3 +203,11 @@ def test_uint_invert(typ, a):
     bits = [(1 << i) & uint_a != 0 for i in range(bitlen)]
     inverted_bits = [(1 << i) & inverted_a != 0 for i in range(bitlen)]
     assert all(bits[i] != inverted_bits[i] for i in range(bitlen))
+
+
+@pytest.mark.parametrize("typ", uint_types)
+@pytest.mark.parametrize("count", [0, 1, 42])
+def test_uint_list_mul(typ, count):
+    uint_count = typ(count)
+    data = [None] * uint_count
+    assert len(data) == count

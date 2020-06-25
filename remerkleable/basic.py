@@ -88,10 +88,12 @@ class uint(int, BasicView):
     def __rsub__(self: T, other: int) -> T:
         return self.__class__(self.__class__.coerce_view(other).__sub__(self))
 
-    def __mul__(self: T, other: int) -> T:
+    def __mul__(self, other):
+        if not isinstance(other, int):
+            return super().__mul__(other)
         return self.__class__(super().__mul__(self.__class__.coerce_view(other)))
 
-    def __rmul__(self: T, other: int) -> T:
+    def __rmul__(self, other):
         return self.__mul__(other)
 
     def __mod__(self: T, other: int) -> T:
