@@ -1,3 +1,5 @@
+# type: ignore
+
 # flake8:noqa E501  Ignore long lines, some test cases are just inherently long
 
 from typing import Iterable, Type
@@ -6,7 +8,7 @@ from remerkleable.complex import Container, Vector, List
 from remerkleable.basic import boolean, bit, byte, uint8, uint16, uint32, uint64, uint128, uint256
 from remerkleable.bitfields import Bitvector, Bitlist
 from remerkleable.byte_arrays import ByteVector, ByteList
-from remerkleable.core import TypeDef, View, ObjType
+from remerkleable.core import View, ObjType
 from hashlib import sha256
 
 import json
@@ -360,11 +362,6 @@ def test_type_bounds(name: str, typ: Type[View], value: View, serialized: str, r
 @pytest.mark.parametrize("name, typ, value, serialized, root, obj", test_data)
 def test_value_byte_length(name: str, typ: Type[View], value: View, serialized: str, root: str, obj: ObjType):
     assert value.value_byte_length() == len(bytes.fromhex(serialized))
-
-
-@pytest.mark.parametrize("name, typ, value, serialized, root, obj", test_data)
-def test_typedef(name: str, typ: Type[View], value: View, serialized: str, root: str, obj: ObjType):
-    assert issubclass(typ, TypeDef)
 
 
 @pytest.mark.parametrize("name, typ, value, serialized, root, obj", test_data)

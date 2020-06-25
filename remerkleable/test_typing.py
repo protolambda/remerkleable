@@ -1,15 +1,15 @@
 # flake8:noqa F401  Ignore unused imports. Tests are a work in progress.
-import pytest
+
+import pytest  # type: ignore
 
 from random import Random
 
-from remerkleable.core import View, TypeDef, BasicView
 from remerkleable.complex import Container, Vector, List
 from remerkleable.basic import boolean, bit, uint, byte, uint8, uint16, uint32, uint64, uint128, uint256,\
     OperationNotSupported
 from remerkleable.bitfields import Bitvector, Bitlist
 from remerkleable.byte_arrays import ByteVector, Bytes1, Bytes4, Bytes8, Bytes32, Bytes48, Bytes96
-from remerkleable.core import BasicView, View, TypeDef
+from remerkleable.core import BasicView, View
 from remerkleable.tree import get_depth
 
 
@@ -26,14 +26,11 @@ def test_subclasses():
         assert issubclass(u, int)
         assert issubclass(u, View)
         assert issubclass(u, BasicView)
-        assert isinstance(u, TypeDef)
     assert issubclass(boolean, BasicView)
     assert issubclass(boolean, View)
-    assert isinstance(boolean, TypeDef)
 
     for c in [Container, List, Vector, Bytes32]:
         assert issubclass(c, View)
-        assert isinstance(c, TypeDef)
 
 
 def test_basic_instances():
@@ -186,7 +183,6 @@ def test_list():
     typ = List[uint64, 128]
     assert issubclass(typ, List)
     assert issubclass(typ, View)
-    assert isinstance(typ, TypeDef)
 
     assert not typ.is_fixed_byte_length()
 
@@ -254,12 +250,13 @@ def test_bytesn_subclass():
     class Root(Bytes32):
         pass
 
-    assert isinstance(Root(b'\xab' * 32), Bytes32)
-    assert not isinstance(Root(b'\xab' * 32), Bytes48)
-    assert issubclass(Root(b'\xab' * 32).__class__, Bytes32)
-    assert issubclass(Root, Bytes32)
+    # mypy does not like instance checks with parametrized generics, but they work, python can do everything
+    assert isinstance(Root(b'\xab' * 32), Bytes32)  # type: ignore
+    assert not isinstance(Root(b'\xab' * 32), Bytes48)  # type: ignore
+    assert issubclass(Root(b'\xab' * 32).__class__, Bytes32)  # type: ignore
+    assert issubclass(Root, Bytes32)  # type: ignore
 
-    assert not issubclass(Bytes48, Bytes32)
+    assert not issubclass(Bytes48, Bytes32)  # type: ignore
 
     assert len(Bytes32() + Bytes48()) == 80
 

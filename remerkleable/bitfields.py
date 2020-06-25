@@ -104,7 +104,7 @@ class BitsView(BackedView, ColSequence):
             if obj.startswith('0x'):
                 return cls.decode_bytes(bytes.fromhex(obj[2:]))
             obj = [c == '1' for c in obj]
-        return cls(obj)
+        return cls(obj)  # type: ignore
 
     def to_obj(self) -> ObjType:
         return '0x' + self.encode_bytes().hex()
@@ -291,7 +291,7 @@ class Bitlist(BitsView):
             raise Exception(f"bitlist too long: {bitlen}, delimiting bit is over limit ({cls.limit()})")
         contents = subtree_fill_to_contents(chunks, cls.contents_depth())
         backing = PairNode(contents, uint256(bitlen).get_backing())
-        return cast(Bitlist, cls.view_from_backing(backing))
+        return cls.view_from_backing(backing)
 
     def serialize(self, stream: BinaryIO) -> int:
         backing = self.get_backing()
@@ -423,7 +423,7 @@ class Bitvector(BitsView, FixedByteLengthViewHelper):
         last_chunk = last_chunk_part + (b"\x00" * (32 - len(last_chunk_part)))
         chunks.append(RootNode(Root(last_chunk)))
         backing = subtree_fill_to_contents(chunks, cls.tree_depth())
-        return cast(Bitvector, cls.view_from_backing(backing))
+        return cls.view_from_backing(backing)
 
     def serialize(self, stream: BinaryIO) -> int:
         backing = self.get_backing()

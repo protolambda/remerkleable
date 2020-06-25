@@ -17,16 +17,15 @@ LEFT_GINDEX = Gindex(2)
 RIGHT_GINDEX = Gindex(3)
 
 
-def to_gindex(index: int, depth: int):
+def to_gindex(index: int, depth: int) -> Gindex:
     anchor = 1 << depth
     if index >= anchor:
         raise Exception("index %d too large for depth %d" % (index, depth))
-    return anchor | index
+    return Gindex(anchor | index)
 
 
 def get_anchor_gindex(gindex: Gindex) -> Gindex:
-    # noinspection PyTypeChecker
-    return 1 << (gindex.bit_length() - 1)
+    return Gindex(1 << (gindex.bit_length() - 1))
 
 
 def gindex_bit_iter(gindex: Gindex) -> Tuple[Iterator[bool], int]:
@@ -55,13 +54,13 @@ def concat_gindices(steps: Iterable[Gindex]) -> Gindex:
 
 Root = NewType("Root", bytes)
 
-MerkleFn = NewType("MerkleFn", Callable[[Root, Root], Root])
+MerkleFn = Callable[[Root, Root], Root]
 
 ZERO_ROOT: Root = Root(b'\x00' * 32)
 
 
 def merkle_hash(left: Root, right: Root) -> Root:
-    return sha256(left + right).digest()
+    return Root(sha256(left + right).digest())
 
 
 Link = Callable[["Node"], "Node"]
@@ -164,7 +163,7 @@ class RebindableNode(Node):
         first = bit_iter.__next__()
         link = self.rebind_right if first else self.rebind_left
         prev_bit = first
-        node = self
+        node: Node = self
         for bit in bit_iter:
             if prev_bit:
                 node = node.get_right()
@@ -176,10 +175,12 @@ class RebindableNode(Node):
                     raise NavigationError
                 child = zero_node(depth - 1)
                 node = self.combine(child, child)
+            # Ignored typing, since the rebind methods are `Callable[[Arg(Node, 'v')], Node]` (mypy specific)
+            # instead of `Callable[[Node], Node]` (aka `Link`)
             if bit:
-                link = compose(node.rebind_right, link)
+                link = compose(node.rebind_right, link)  # type: ignore
             else:
-                link = compose(node.rebind_left, link)
+                link = compose(node.rebind_left, link)  # type: ignore
             prev_bit = bit
         return link
 
