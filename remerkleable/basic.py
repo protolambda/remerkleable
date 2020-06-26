@@ -68,6 +68,7 @@ class boolean(int, BasicView):
 
 
 T = TypeVar('T', bound="uint")
+W = TypeVar('W', bound=int)
 
 
 class uint(int, BasicView):
@@ -130,20 +131,20 @@ class uint(int, BasicView):
         mask = (1 << (self.type_byte_length() << 3)) - 1
         return self.__class__(super().__lshift__(int(other)) & mask)
 
-    def __rlshift__(self: T, other: "uint") -> T:
+    def __rlshift__(self, other: W) -> W:
         if not isinstance(other, uint):
             raise ValueError(f"{other} << {self} through __rlshift__ is not supported, "
                              f"left operand {other} must be a uint type with __lshift__")
-        return other.__lshift__(self)
+        return other.__lshift__(self)  # type: ignore
 
     def __rshift__(self: T, other: int) -> T:
         return self.__class__(super().__rshift__(int(other)))
 
-    def __rrshift__(self: T, other: "uint") -> T:
+    def __rrshift__(self, other: W) -> W:
         if not isinstance(other, uint):
             raise ValueError(f"{other} >> {self} through __rrshift__ is not supported, "
                              f"left operand {other} must be a uint type with __rshift__")
-        return other.__rshift__(self)
+        return other.__rshift__(self)  # type: ignore
 
     def __and__(self: T, other: int) -> T:
         return self.__class__(super().__and__(self.__class__.coerce_view(other)))
