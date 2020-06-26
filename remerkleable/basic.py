@@ -130,16 +130,20 @@ class uint(int, BasicView):
         mask = (1 << (self.type_byte_length() << 3)) - 1
         return self.__class__(super().__lshift__(int(other)) & mask)
 
-    def __rlshift__(self: T, other: int) -> T:
-        raise OperationNotSupported(f"{other} << {self} through __rlshift__ is not supported, "
-                                    f"{other} must be a uint type with __lshift__")
+    def __rlshift__(self: T, other: "uint") -> T:
+        if not isinstance(other, uint):
+            raise ValueError(f"{other} << {self} through __rlshift__ is not supported, "
+                             f"left operand {other} must be a uint type with __lshift__")
+        return other.__lshift__(self)
 
     def __rshift__(self: T, other: int) -> T:
         return self.__class__(super().__rshift__(int(other)))
 
-    def __rrshift__(self: T, other: int) -> T:
-        raise OperationNotSupported(f"{other} >> {self} through __rrshift__ is not supported, "
-                                    f"{other} must be a uint type with __rshift__")
+    def __rrshift__(self: T, other: "uint") -> T:
+        if not isinstance(other, uint):
+            raise ValueError(f"{other} >> {self} through __rrshift__ is not supported, "
+                             f"left operand {other} must be a uint type with __rshift__")
+        return other.__rshift__(self)
 
     def __and__(self: T, other: int) -> T:
         return self.__class__(super().__and__(self.__class__.coerce_view(other)))
