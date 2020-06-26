@@ -6,7 +6,8 @@ from remerkleable.core import View, ViewHook, zero_node, FixedByteLengthViewHelp
     ObjParseException
 from remerkleable.basic import byte, uint256
 
-V = TypeVar('V', bound=View)
+
+RV = TypeVar('RV', bound="RawBytesView")
 
 
 class RawBytesView(bytes, View):
@@ -34,7 +35,7 @@ class RawBytesView(bytes, View):
         raise NotImplementedError
 
     @classmethod
-    def coerce_view(cls: Type[V], v: Any) -> V:
+    def coerce_view(cls: Type[RV], v: Any) -> RV:
         return cls(v)
 
     @classmethod
@@ -51,14 +52,14 @@ class RawBytesView(bytes, View):
         return "0x" + self.hex()
 
     @classmethod
-    def decode_bytes(cls: Type[V], bytez: bytes) -> V:
+    def decode_bytes(cls: Type[RV], bytez: bytes) -> RV:
         return cls(bytez)
 
     def encode_bytes(self) -> bytes:
         return self
 
     @classmethod
-    def from_obj(cls: Type[V], obj: ObjType) -> V:
+    def from_obj(cls: Type[RV], obj: ObjType) -> RV:
         if not isinstance(obj, (list, tuple, str, bytes)):
             raise ObjParseException(f"obj '{obj}' is not a list, tuple, str or bytes")
         return cls(obj)
@@ -68,6 +69,9 @@ class RawBytesView(bytes, View):
 
     def navigate_view(self, key: Any) -> View:
         return byte(self.__getitem__(key))
+
+
+BV = TypeVar('BV', bound="ByteVector")
 
 
 class ByteVector(RawBytesView, FixedByteLengthViewHelper, View):
@@ -110,7 +114,7 @@ class ByteVector(RawBytesView, FixedByteLengthViewHelper, View):
         return f"ByteVector[{cls.vector_length()}]"
 
     @classmethod
-    def view_from_backing(cls: Type[V], node: Node, hook: Optional[ViewHook[V]] = None) -> V:
+    def view_from_backing(cls: Type[BV], node: Node, hook: Optional[ViewHook] = None) -> BV:
         depth = cls.tree_depth()
         byte_len = cls.vector_length()
         if depth == 0:
@@ -147,12 +151,15 @@ class ByteVector(RawBytesView, FixedByteLengthViewHelper, View):
 
 # Define common special Byte vector view types, these are bytes-like:
 # raw representation instead of backed by a binary tree. Inheriting Python "bytes"
-Bytes1 = ByteVector[1]
-Bytes4 = ByteVector[4]
-Bytes8 = ByteVector[8]
-Bytes32 = ByteVector[32]
-Bytes48 = ByteVector[48]
-Bytes96 = ByteVector[96]
+Bytes1 = ByteVector[1]  # type: ignore
+Bytes4 = ByteVector[4]  # type: ignore
+Bytes8 = ByteVector[8]  # type: ignore
+Bytes32 = ByteVector[32]  # type: ignore
+Bytes48 = ByteVector[48]  # type: ignore
+Bytes96 = ByteVector[96]  # type: ignore
+
+
+BL = TypeVar('BL', bound="ByteList")
 
 
 class ByteList(RawBytesView, FixedByteLengthViewHelper, View):
@@ -192,7 +199,7 @@ class ByteList(RawBytesView, FixedByteLengthViewHelper, View):
         return f"ByteList[{cls.limit()}]"
 
     @classmethod
-    def view_from_backing(cls: Type[V], node: Node, hook: Optional[ViewHook[V]] = None) -> V:
+    def view_from_backing(cls: Type[BL], node: Node, hook: Optional[ViewHook] = None) -> BL:
         contents_depth = cls.contents_depth()
         contents_node = node.get_left()
         length = uint256.view_from_backing(node.get_right())
@@ -252,7 +259,7 @@ class ByteList(RawBytesView, FixedByteLengthViewHelper, View):
         return cls.limit()
 
     @classmethod
-    def deserialize(cls: Type[V], stream: BinaryIO, scope: int) -> V:
+    def deserialize(cls: Type[BL], stream: BinaryIO, scope: int) -> BL:
         return cls.decode_bytes(stream.read(scope))
 
     def value_byte_length(self) -> int:

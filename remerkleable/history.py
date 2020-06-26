@@ -1,8 +1,8 @@
 from remerkleable.tree import Gindex, Node, get_anchor_gindex, ROOT_GINDEX
-from typing import List as Iterable, Tuple, TypeVar
+from typing import List, Tuple, TypeVar
 
 K = TypeVar('K')
-History = Iterable[Tuple[K, Node]]
+History = List[Tuple[K, Node]]
 
 
 def get_target_history(history: History, target: Gindex) -> History:
@@ -23,7 +23,7 @@ def get_target_history(history: History, target: Gindex) -> History:
     # Don't go deeper than the anchor. In this case we just return the (duplicate reduced) history.
     is_anchor = (anchor == ROOT_GINDEX)
 
-    out = []
+    out: History = []
     last = None
 
     for key, node in history:

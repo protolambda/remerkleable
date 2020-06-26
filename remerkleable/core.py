@@ -2,7 +2,7 @@ from typing import Callable, Optional, Any, cast, List as PyList, BinaryIO,\
     TypeVar, Type, Protocol, runtime_checkable, Union
 
 # noinspection PyUnresolvedReferences
-from typing import _ProtocolMeta
+from typing import _ProtocolMeta  # type: ignore
 
 from remerkleable.tree import Node, Root, RootNode, zero_node, concat_gindices, Gindex
 from itertools import zip_longest
@@ -14,75 +14,16 @@ OFFSET_BYTE_LENGTH = 4
 V = TypeVar('V', bound="View")
 
 
-class TypeDefMeta(_ProtocolMeta):
+class ViewMeta(_ProtocolMeta):
     def __truediv__(self, other) -> "Path":
         return Path.from_raw_path(anchor=cast(Type[View], self), path=[other])
 
 
-ObjType = Union[dict, list, tuple, str, int, bool, None, "ObjType"]
+ObjType = Union[dict, list, tuple, str, int, bool, None]
 
 
 class ObjParseException(Exception):
     pass
-
-
-@runtime_checkable
-class TypeDef(Protocol, metaclass=TypeDefMeta):
-    @classmethod
-    def coerce_view(cls: Type[V], v: Any) -> V:
-        ...
-
-    @classmethod
-    def default(cls: Type[V], hook: Optional["ViewHook[V]"]) -> V:
-        ...
-
-    @classmethod
-    def default_node(cls) -> Node:
-        ...
-
-    @classmethod
-    def view_from_backing(cls: Type[V], node: Node, hook: Optional["ViewHook[V]"] = None) -> V:
-        ...
-
-    @classmethod
-    def is_fixed_byte_length(cls) -> bool:
-        ...
-
-    @classmethod
-    def type_byte_length(cls) -> int:
-        ...
-
-    @classmethod
-    def min_byte_length(cls) -> int:
-        ...
-
-    @classmethod
-    def max_byte_length(cls) -> int:
-        ...
-
-    @classmethod
-    def decode_bytes(cls: Type[V], bytez: bytes) -> V:
-        ...
-
-    @classmethod
-    def deserialize(cls: Type[V], stream: BinaryIO, scope: int) -> V:
-        ...
-
-    @classmethod
-    def from_obj(cls: Type[V], obj: ObjType) -> V:
-        ...
-
-    @classmethod
-    def type_repr(cls) -> str:
-        ...
-
-    @classmethod
-    def navigate_type(cls, key: Any) -> Type["View"]:
-        raise Exception(f"cannot type-navigate into a {cls.type_repr()}, key: '{key}'")
-
-    @classmethod
-    def key_to_static_gindex(cls, key: Any) -> Gindex:
-        raise Exception(f"cannot get static gindex into type {cls.type_repr()}, key: '{key}'")
 
 
 class Path(object):
@@ -141,7 +82,56 @@ HV = TypeVar('HV', bound="View")
 ViewHook = Callable[[HV], None]
 
 
-class View(TypeDef):
+@runtime_checkable
+class View(Protocol, metaclass=ViewMeta):
+
+    @classmethod
+    def coerce_view(cls: Type[V], v: Any) -> V:
+        ...
+
+    @classmethod
+    def default_node(cls) -> Node:
+        ...
+
+    @classmethod
+    def view_from_backing(cls: Type[V], node: Node, hook: Optional["ViewHook[V]"] = None) -> V:
+        ...
+
+    @classmethod
+    def is_fixed_byte_length(cls) -> bool:
+        ...
+
+    @classmethod
+    def min_byte_length(cls) -> int:
+        ...
+
+    @classmethod
+    def max_byte_length(cls) -> int:
+        ...
+
+    @classmethod
+    def decode_bytes(cls: Type[V], bytez: bytes) -> V:
+        ...
+
+    @classmethod
+    def deserialize(cls: Type[V], stream: BinaryIO, scope: int) -> V:
+        ...
+
+    @classmethod
+    def from_obj(cls: Type[V], obj: ObjType) -> V:
+        ...
+
+    @classmethod
+    def type_repr(cls) -> str:
+        ...
+
+    @classmethod
+    def navigate_type(cls, key: Any) -> Type["View"]:
+        raise Exception(f"cannot type-navigate into a {cls.type_repr()}, key: '{key}'")
+
+    @classmethod
+    def key_to_static_gindex(cls, key: Any) -> Gindex:
+        raise Exception(f"cannot get static gindex into type {cls.type_repr()}, key: '{key}'")
 
     @classmethod
     def default(cls: Type[V], hook: Optional[ViewHook[V]]) -> V:
@@ -196,7 +186,7 @@ class View(TypeDef):
         return hash(self.hash_tree_root())
 
 
-class FixedByteLengthViewHelper(View):
+class FixedByteLengthViewHelper(View, Protocol):
     @classmethod
     def is_fixed_byte_length(cls) -> bool:
         return True
@@ -220,18 +210,21 @@ class FixedByteLengthViewHelper(View):
         return self.type_byte_length()
 
 
-class BackedView(View, TypeDef):
+BackedV = TypeVar('BackedV', bound="BackedView")
+
+
+class BackedView(View):
     _hook: Optional[ViewHook]
     _backing: Node
 
     @classmethod
-    def view_from_backing(cls: Type[V], node: Node, hook: Optional[ViewHook[V]] = None) -> V:
+    def view_from_backing(cls: Type[BackedV], node: Node, hook: Optional[ViewHook] = None) -> BackedV:
         return cls(backing=node, hook=hook)
 
-    def __new__(cls, backing: Optional[Node] = None, hook: Optional[ViewHook[V]] = None, **kwargs):
+    def __new__(cls, backing: Optional[Node] = None, hook: Optional[ViewHook] = None, **kwargs):
         if backing is None:
             backing = cls.default_node()
-        out = super().__new__(cls, **kwargs)
+        out = super().__new__(cls, **kwargs)  # type: ignore
         out._backing = backing
         out._hook = hook
         return out
@@ -250,23 +243,14 @@ BV = TypeVar('BV', bound="BasicView")
 
 
 @runtime_checkable
-class BasicTypeDef(TypeDef, Protocol):
-    @classmethod
-    def basic_view_from_backing(cls: Type[BV], node: Node, i: int) -> BV:
-        ...
+class BasicView(FixedByteLengthViewHelper, Protocol):
 
-    @classmethod
-    def pack_views(cls: Type[BV], views: PyList[BV]) -> PyList[Node]:
-        ...
-
-
-class BasicView(FixedByteLengthViewHelper, BasicTypeDef):
     @classmethod
     def default_node(cls) -> Node:
         return zero_node(0)
 
     @classmethod
-    def view_from_backing(cls: Type[BV], node: Node, hook: Optional[ViewHook[BV]] = None) -> V:
+    def view_from_backing(cls: Type[BV], node: Node, hook: Optional[ViewHook[BV]] = None) -> BV:
         size = cls.type_byte_length()
         return cls.decode_bytes(node.root[0:size])
 
@@ -319,7 +303,8 @@ def byte_int_to_byte(b: int) -> bytes:
 
 
 def pack_bits_to_chunks(items: Iterable[bool]) -> PyList[Node]:
-    return pack_byte_ints_to_chunks(map(bits_to_byte_int, grouper(items, 8, fillvalue=0)))
+    # grouper returns tuples of N=8, bits_to_byte_int takes tuples of 8, but mypy does not follow.
+    return pack_byte_ints_to_chunks(map(bits_to_byte_int, grouper(items, 8, fillvalue=0)))  # type: ignore
 
 
 def pack_byte_ints_to_chunks(items: Iterable[int]) -> PyList[Node]:
@@ -329,7 +314,7 @@ def pack_byte_ints_to_chunks(items: Iterable[int]) -> PyList[Node]:
 
 def pack_bytes_to_chunks(bytez: bytes) -> PyList[Node]:
     full_chunks_byte_len = (len(bytez) >> 5) << 5
-    out = [RootNode(Root(bytez[i:i+32])) for i in range(0, full_chunks_byte_len, 32)]
+    out: PyList[Node] = [RootNode(Root(bytez[i:i+32])) for i in range(0, full_chunks_byte_len, 32)]
     if len(bytez) != full_chunks_byte_len:
         out.append(RootNode(Root(bytez[full_chunks_byte_len:] + (b"\x00" * (32 - (len(bytez) - full_chunks_byte_len))))))
     return out

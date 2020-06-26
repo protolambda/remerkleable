@@ -10,6 +10,9 @@ class OperationNotSupported(Exception):
     pass
 
 
+BoolV = TypeVar('BoolV', bound="boolean")
+
+
 class boolean(int, BasicView):
 
     def encode_bytes(self) -> bytes:
@@ -18,7 +21,7 @@ class boolean(int, BasicView):
     def __new__(cls, value: int):  # int value, but can be any subclass of int (bool, Bit, Bool, etc...)
         if value < 0 or value > 1:
             raise ValueError(f"value {value} out of bounds for bit")
-        return super().__new__(cls, value)
+        return super().__new__(cls, value)  # type: ignore
 
     def __add__(self, other):
         raise OperationNotSupported(f"cannot add bool ({self} + {other})")
@@ -39,7 +42,7 @@ class boolean(int, BasicView):
         return self > 0
 
     @classmethod
-    def coerce_view(cls: Type[V], v: Any) -> V:
+    def coerce_view(cls: Type[BoolV], v: Any) -> BoolV:
         return cls(v)
 
     @classmethod
@@ -47,11 +50,11 @@ class boolean(int, BasicView):
         return 1
 
     @classmethod
-    def decode_bytes(cls: Type[V], bytez: bytes) -> V:
+    def decode_bytes(cls: Type[BoolV], bytez: bytes) -> BoolV:
         return cls(bytez != b"\x00")
 
     @classmethod
-    def from_obj(cls: Type[V], obj: ObjType) -> V:
+    def from_obj(cls: Type[BoolV], obj: ObjType) -> BoolV:
         if not isinstance(obj, bool):
             raise ObjParseException(f"obj '{obj}' is not a bool")
         return cls(obj)
@@ -65,6 +68,7 @@ class boolean(int, BasicView):
 
 
 T = TypeVar('T', bound="uint")
+W = TypeVar('W', bound=int)
 
 
 class uint(int, BasicView):
@@ -74,7 +78,7 @@ class uint(int, BasicView):
         byte_len = cls.type_byte_length()
         if value.bit_length() > (byte_len << 3):
             raise ValueError(f"value out of bounds for {cls}")
-        return super().__new__(cls, value)
+        return super().__new__(cls, value)  # type: ignore
 
     def __add__(self: T, other: int) -> T:
         return self.__class__(super().__add__(self.__class__.coerce_view(other)))
@@ -108,11 +112,11 @@ class uint(int, BasicView):
     def __rfloordiv__(self: T, other: int) -> T:
         return self.__class__(self.__class__.coerce_view(other).__floordiv__(self))
 
-    def __truediv__(self: T, other: int) -> T:
+    def __truediv__(self, other):
         raise OperationNotSupported(f"non-integer division '{self} / {other}' "
                                     f"is not valid for {self.__class__.type_repr()} left hand type")
 
-    def __rtruediv__(self: T, other: int) -> T:
+    def __rtruediv__(self, other):
         raise OperationNotSupported(f"non-integer division '{other} / {self}' "
                                     f"is not valid for {self.__class__.type_repr()} right hand type")
 
@@ -127,20 +131,20 @@ class uint(int, BasicView):
         mask = (1 << (self.type_byte_length() << 3)) - 1
         return self.__class__(super().__lshift__(int(other)) & mask)
 
-    def __rlshift__(self: T, other: "uint") -> T:
+    def __rlshift__(self, other: W) -> W:
         if not isinstance(other, uint):
             raise ValueError(f"{other} << {self} through __rlshift__ is not supported, "
                              f"left operand {other} must be a uint type with __lshift__")
-        return other.__lshift__(self)
+        return other.__lshift__(self)  # type: ignore
 
     def __rshift__(self: T, other: int) -> T:
         return self.__class__(super().__rshift__(int(other)))
 
-    def __rrshift__(self: T, other: "uint") -> T:
+    def __rrshift__(self, other: W) -> W:
         if not isinstance(other, uint):
             raise ValueError(f"{other} >> {self} through __rrshift__ is not supported, "
                              f"left operand {other} must be a uint type with __rshift__")
-        return other.__rshift__(self)
+        return other.__rshift__(self)  # type: ignore
 
     def __and__(self: T, other: int) -> T:
         return self.__class__(super().__and__(self.__class__.coerce_view(other)))
@@ -176,7 +180,7 @@ class uint(int, BasicView):
     # __coerce__ is avoided to utilize explicit type hinting and special case the edge-cases for unsigned int safety
 
     @classmethod
-    def coerce_view(cls: Type[V], v: Any) -> V:
+    def coerce_view(cls: Type[T], v: Any) -> T:
         if isinstance(v, uint) and cls.type_byte_length() != v.__class__.type_byte_length():
             raise ValueError("value must have equal byte length to coerce it")
         if isinstance(v, bytes):
@@ -184,14 +188,14 @@ class uint(int, BasicView):
         return cls(v)
 
     @classmethod
-    def decode_bytes(cls: Type[V], bytez: bytes) -> V:
+    def decode_bytes(cls: Type[T], bytez: bytes) -> T:
         return cls(int.from_bytes(bytez, byteorder='little'))
 
     def encode_bytes(self) -> bytes:
         return self.to_bytes(length=self.__class__.type_byte_length(), byteorder='little')
 
     @classmethod
-    def from_obj(cls: Type[V], obj: ObjType) -> V:
+    def from_obj(cls: Type[T], obj: ObjType) -> T:
         if not isinstance(obj, (int, str)):
             raise ObjParseException(f"obj '{obj}' is not an int or str")
         if isinstance(obj, str):

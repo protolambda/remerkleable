@@ -1,6 +1,6 @@
 from typing import Type, List, Callable
 
-import pytest
+import pytest  # type: ignore
 
 from remerkleable.basic import uint, uint8, uint16, uint32, uint64, uint128, uint256, \
     OperationNotSupported

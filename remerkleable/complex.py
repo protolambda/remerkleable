@@ -5,7 +5,7 @@ from textwrap import indent
 from collections.abc import Sequence as ColSequence
 from itertools import chain
 import io
-from remerkleable.core import View, BasicTypeDef, BasicView, OFFSET_BYTE_LENGTH, ViewHook, ObjType, ObjParseException
+from remerkleable.core import View, BasicView, OFFSET_BYTE_LENGTH, ViewHook, ObjType, ObjParseException
 from remerkleable.basic import uint256, uint8, uint32
 from remerkleable.tree import Node, subtree_fill_to_length, subtree_fill_to_contents,\
     zero_node, Gindex, PairNode, to_gindex, NavigationError, get_depth
@@ -38,13 +38,16 @@ class ComplexView(SubtreeView):
         return cls.deserialize(stream, len(bytez))
 
 
+M = TypeVar('M', bound="MonoSubtreeView")
+
+
 class MonoSubtreeView(ColSequence, ComplexView):
 
     def length(self) -> int:
         raise NotImplementedError
 
     @classmethod
-    def coerce_view(cls: Type[V], v: Any) -> V:
+    def coerce_view(cls: Type[M], v: Any) -> M:
         return cls(*v)
 
     @classmethod
@@ -59,7 +62,7 @@ class MonoSubtreeView(ColSequence, ComplexView):
     def to_chunk_length(cls, elems_length: int) -> int:
         if cls.is_packed():
             elem_type: Type[View] = cls.element_cls()
-            if isinstance(elem_type, BasicTypeDef):
+            if issubclass(elem_type, BasicView):
                 elems_per_chunk = 32 // elem_type.type_byte_length()
                 return (elems_length + elems_per_chunk - 1) // elems_per_chunk
             else:
@@ -71,8 +74,9 @@ class MonoSubtreeView(ColSequence, ComplexView):
     def views_into_chunks(cls, views: PyList[View]) -> PyList[Node]:
         if cls.is_packed():
             elem_type: Type[View] = cls.element_cls()
-            if isinstance(elem_type, BasicTypeDef):
-                return elem_type.pack_views(views)
+            if issubclass(elem_type, BasicView):
+                # cast the list as a whole, checking each element takes too long.
+                return elem_type.pack_views(cast(PyList[BasicView], views))
             else:
                 raise Exception("cannot append a packed element that is not a basic type")
         else:
@@ -101,7 +105,7 @@ class MonoSubtreeView(ColSequence, ComplexView):
                 return ComplexElemIter(backing, tree_depth, length, elem_type)
 
     @classmethod
-    def deserialize(cls: Type[V], stream: BinaryIO, scope: int) -> V:
+    def deserialize(cls: Type[M], stream: BinaryIO, scope: int) -> M:
         elem_cls = cls.element_cls()
         if elem_cls.is_fixed_byte_length():
             elem_byte_length = elem_cls.type_byte_length()
@@ -110,7 +114,7 @@ class MonoSubtreeView(ColSequence, ComplexView):
             count = scope // elem_byte_length
             if not cls.is_valid_count(count):
                 raise Exception(f"count {count} is invalid")
-            return cls(elem_cls.deserialize(stream, elem_byte_length) for _ in range(count))
+            return cls(elem_cls.deserialize(stream, elem_byte_length) for _ in range(count))  # type: ignore
         else:
             if scope == 0:
                 if not cls.is_valid_count(0):
@@ -137,7 +141,7 @@ class MonoSubtreeView(ColSequence, ComplexView):
                     raise Exception(f"offset[{i}] value {start} is invalid, next offset is {end},"
                                     f" implied size is {elem_size}, size bounds: [{elem_min}, {elem_max}]")
                 elems.append(elem_cls.deserialize(stream, elem_size))
-            return cls(*elems)
+            return cls(*elems)  # type: ignore
 
     def serialize(self, stream: BinaryIO) -> int:
         elem_cls = self.__class__.element_cls()
@@ -160,11 +164,11 @@ class MonoSubtreeView(ColSequence, ComplexView):
             return offset
 
     @classmethod
-    def from_obj(cls: Type[V], obj: ObjType) -> V:
+    def from_obj(cls: Type[M], obj: ObjType) -> M:
         if not isinstance(obj, (list, tuple)):
             raise ObjParseException(f"obj '{obj}' is not a list or tuple")
         elem_cls = cls.element_cls()
-        return cls(elem_cls.from_obj(el) for el in obj)
+        return cls(elem_cls.from_obj(el) for el in obj)  # type: ignore
 
     @classmethod
     def navigate_type(cls, key: Any) -> Type[View]:
@@ -231,7 +235,7 @@ class MonoSubtreeView(ColSequence, ComplexView):
             except NavigationError:
                 partial = True
                 continue
-        basic_elems = isinstance(self.element_cls(), BasicTypeDef)
+        basic_elems = isinstance(self.element_cls(), BasicView)
         shortened = length > (64 if basic_elems else 8)
         summary_length = (10 if basic_elems else 3)
         seperator = ', ' if basic_elems else ',\n'
@@ -287,7 +291,7 @@ class List(MonoSubtreeView):
         (element_type, limit) = params
         contents_depth = 0
         packed = False
-        if isinstance(element_type, BasicTypeDef):
+        if isinstance(element_type, BasicView):
             elems_per_chunk = 32 // element_type.type_byte_length()
             contents_depth = get_depth((limit + elems_per_chunk - 1) // elems_per_chunk)
             packed = True
@@ -334,27 +338,26 @@ class List(MonoSubtreeView):
         elem_type: Type[View] = self.__class__.element_cls()
         if not isinstance(v, elem_type):
             v = elem_type.coerce_view(v)
+        target: Gindex
         if self.__class__.is_packed():
             next_backing = self.get_backing()
-            if isinstance(elem_type, BasicTypeDef):
-                if not isinstance(v, BasicView):
-                    raise Exception("input element is not a basic view")
-                basic_v: BasicView = v
+            if isinstance(v, BasicView):
                 elems_per_chunk = 32 // elem_type.type_byte_length()
                 chunk_i = i // elems_per_chunk
-                target: Gindex = to_gindex(chunk_i, self.__class__.tree_depth())
+                target = to_gindex(chunk_i, self.__class__.tree_depth())
+                chunk: Node
                 if i % elems_per_chunk == 0:
                     set_last = next_backing.setter(target, expand=True)
                     chunk = zero_node(0)
                 else:
                     set_last = next_backing.setter(target)
                     chunk = next_backing.getter(target)
-                chunk = basic_v.backing_from_base(chunk, i % elems_per_chunk)
+                chunk = v.backing_from_base(chunk, i % elems_per_chunk)
                 next_backing = set_last(chunk)
             else:
                 raise Exception("cannot append a packed element that is not a basic type")
         else:
-            target: Gindex = to_gindex(i, self.__class__.tree_depth())
+            target = to_gindex(i, self.__class__.tree_depth())
             set_last = self.get_backing().setter(target, expand=True)
             next_backing = set_last(v.get_backing())
 
@@ -373,7 +376,7 @@ class List(MonoSubtreeView):
         if self.__class__.is_packed():
             next_backing = self.get_backing()
             elem_type: Type[View] = self.__class__.element_cls()
-            if isinstance(elem_type, BasicTypeDef):
+            if issubclass(elem_type, BasicView):
                 elems_per_chunk = 32 // elem_type.type_byte_length()
                 chunk_i = i // elems_per_chunk
                 target = to_gindex(chunk_i, self.__class__.tree_depth())
@@ -382,7 +385,7 @@ class List(MonoSubtreeView):
                 else:
                     chunk = next_backing.getter(target)
                 set_last = next_backing.setter(target)
-                chunk = cast(BasicView, elem_type.default(None)).backing_from_base(chunk, i % elems_per_chunk)
+                chunk = elem_type.default(None).backing_from_base(chunk, i % elems_per_chunk)
                 next_backing = set_last(chunk)
 
                 can_summarize = (target & 1) == 0 and i % elems_per_chunk == 0
@@ -438,7 +441,7 @@ class List(MonoSubtreeView):
         return cls.contents_depth() + 1  # 1 extra for length mix-in
 
     @classmethod
-    def item_elem_cls(cls, i: int) -> Type[V]:
+    def item_elem_cls(cls, i: int) -> Type[View]:
         return cls.element_cls()
 
     @classmethod
@@ -526,7 +529,7 @@ class Vector(MonoSubtreeView):
 
         tree_depth = 0
         packed = False
-        if isinstance(element_view_cls, BasicTypeDef):
+        if isinstance(element_view_cls, BasicView):
             elems_per_chunk = 32 // element_view_cls.type_byte_length()
             tree_depth = get_depth((length + elems_per_chunk - 1) // elems_per_chunk)
             packed = True
@@ -550,6 +553,8 @@ class Vector(MonoSubtreeView):
             def vector_length(cls) -> int:
                 return length
 
+        out_typ = SpecialVectorView
+
         # for fixed-size vectors, pre-compute the size.
         if element_view_cls.is_fixed_byte_length():
             byte_length = element_view_cls.type_byte_length() * length
@@ -567,10 +572,10 @@ class Vector(MonoSubtreeView):
                 def max_byte_length(cls) -> int:
                     return byte_length
 
-            SpecialVectorView = FixedSpecialVectorView
+            out_typ = FixedSpecialVectorView
 
-        SpecialVectorView.__name__ = SpecialVectorView.type_repr()
-        return SpecialVectorView
+        out_typ.__name__ = out_typ.type_repr()
+        return out_typ
 
     def get(self, i: int) -> View:
         if i < 0 or i >= self.__class__.vector_length():
@@ -622,6 +627,7 @@ class Vector(MonoSubtreeView):
     def default_node(cls) -> Node:
         elem_type: Type[View] = cls.element_cls()
         length = cls.to_chunk_length(cls.vector_length())
+        elem: Node
         if cls.is_packed():
             elem = zero_node(0)
         else:
@@ -668,6 +674,9 @@ class _ContainerLike(Protocol):
         ...
 
 
+CV = TypeVar('CV', bound="Container")
+
+
 class Container(ComplexView):
     # Container types should declare fields through class annotations.
     # If none are specified, it will fall back on this (to avoid annotations of super classes),
@@ -707,8 +716,8 @@ class Container(ComplexView):
             raise Exception(f"Container {cls.__name__} must have at least one field!")
 
     @classmethod
-    def coerce_view(cls: Type[V], v: Any) -> V:
-        return cls({fkey: getattr(v, fkey) for fkey in cls.fields().keys()})
+    def coerce_view(cls: Type[CV], v: Any) -> CV:
+        return cls(**{fkey: getattr(v, fkey) for fkey in cls.fields().keys()})
 
     @classmethod
     def fields(cls) -> Fields:
@@ -827,7 +836,7 @@ class Container(ComplexView):
         return cls.deserialize(stream, len(bytez))
 
     @classmethod
-    def deserialize(cls: Type[V], stream: BinaryIO, scope: int) -> V:
+    def deserialize(cls: Type[CV], stream: BinaryIO, scope: int) -> CV:
         fields = cls.fields()
         field_values: Dict[str, View]
         if cls.is_fixed_byte_length():
@@ -857,35 +866,37 @@ class Container(ComplexView):
                         raise Exception(f"offset {i} is invalid, size out of bounds: {foffset}, next {next_offset},"
                                         f" implied size: {fsize}, size bounds: [{f_min_size}, {f_max_size}]")
                     field_values[fkey] = ftyp.deserialize(stream, fsize)
-        return cls(**field_values)
+        return cls(**field_values)  # type: ignore
 
     def serialize(self, stream: BinaryIO) -> int:
         fields = self.__class__.fields()
         is_fixed_size = self.is_fixed_byte_length()
-        temp_dyn_stream = None if is_fixed_size else io.BytesIO()
+        temp_dyn_stream: BinaryIO
         written = sum(map((lambda x: x.type_byte_length() if x.is_fixed_byte_length() else OFFSET_BYTE_LENGTH),
                           fields.values()))
+        if not is_fixed_size:
+            temp_dyn_stream = io.BytesIO()
         for fkey, ftyp in fields.items():
             v: View = getattr(self, fkey)
             if ftyp.is_fixed_byte_length():
                 v.serialize(stream)
             else:
                 encode_offset(stream, written)
-                written += v.serialize(temp_dyn_stream)
+                written += v.serialize(temp_dyn_stream)  # type: ignore
         if not is_fixed_size:
             temp_dyn_stream.seek(0)
             stream.write(temp_dyn_stream.read(written))
         return written
 
     @classmethod
-    def from_obj(cls: Type[V], obj: ObjType) -> V:
+    def from_obj(cls: Type[CV], obj: ObjType) -> CV:
         if not isinstance(obj, dict):
             raise ObjParseException(f"obj '{obj}' is not a dict")
         fields = cls.fields()
         for k in obj.keys():
             if k not in fields:
                 raise ObjParseException(f"obj '{obj}' has unknown key {k}")
-        return cls(**{k: fields[k].from_obj(v) for k, v in obj.items()})
+        return cls(**{k: fields[k].from_obj(v) for k, v in obj.items()})  # type: ignore
 
     def to_obj(self) -> ObjType:
         return {f_k: f_v.to_obj() for f_k, f_v in zip(self.__class__.fields().keys(), self.__iter__())}
