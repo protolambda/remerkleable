@@ -1,6 +1,14 @@
 Changelog
 ==========
 
+v0.1.17
+--------
+
+- Use r-op overloads to cover all uint operations better (Thanks @ericsson49 for help)
+- Use MyPy for type checking, fix type inconsistencies (Thanks @hwwhww for help)
+- Refactor TypeDef into part of View class
+
+
 v0.1.16
 --------
 
