@@ -121,6 +121,48 @@ def test_uint_shifts(typ, a, b, op, b_unsigned):
 
 @pytest.mark.parametrize("typ", uint_types)
 @pytest.mark.parametrize("a", uint_valid_cases)
+@pytest.mark.parametrize("b", shift_cases)
+@pytest.mark.parametrize("op", shift_operations)
+@pytest.mark.parametrize("a_unsigned", [True, False])
+def test_uint_rshifts(typ, a, b, op, a_unsigned):
+    a_v = a(typ)
+    b_v = b(typ)
+    uint_a = typ(a_v)
+    uint_b = typ(b_v)
+    f = getattr(a_v, f'__{op}__')
+    int_v = f(b_v)
+    uint_f = getattr(uint_b, f'__r{op}__')
+    try:
+        uint_v = uint_f(uint_a if a_unsigned else a_v)
+        # Only allow reverse shifts if the left operand is a uint, otherwise we can't know the resulting size.
+        assert a_unsigned
+        mask = (1 << (typ.type_byte_length() << 3)) - 1
+        assert mask.to_bytes(length=typ.type_byte_length(), byteorder='little').hex() == 'ff' * typ.type_byte_length()
+        assert (int_v & mask) == int(uint_v)
+    except ValueError:
+        assert not a_unsigned
+
+
+def test_mixed_uint_lshifts():
+    assert uint64(0xff) << uint8(8*7) == uint64(0xff00_0000_0000_0000)
+    assert uint16(0xff) << uint8(8*7) == uint16(0)
+    assert uint256(1) << uint8(255) == uint256(1 << 255)
+    assert uint256(1) << uint16(255) == uint256(1 << 255)
+    assert uint256(1) << uint16(256) == uint256(0)
+    assert uint8(42) >> uint64(3) == uint8(42 >> 3)
+
+
+def test_mixed_uint_rshifts():
+    assert uint64(0xff00_0000_0000_0000) >> uint8(8*7) == uint64(0xff)
+    assert uint16(0xff) >> uint8(8) == uint16(0)
+    assert uint16(0xff) >> uint8(6) == uint16(3)
+    assert uint256(1 << 255) >> uint8(255) == uint256(1)
+    assert uint256(1 << 255) >> uint16(255) == uint256(1)
+    assert uint8(42) << uint64(3) == uint8((42 << 3) & 0xff)
+
+
+@pytest.mark.parametrize("typ", uint_types)
+@pytest.mark.parametrize("a", uint_valid_cases)
 @pytest.mark.parametrize("b_v", [0, 1, 2, 3, 5])
 @pytest.mark.parametrize("rev", [True, False])
 @pytest.mark.parametrize("b_unsigned", [True, False])
@@ -169,7 +211,7 @@ def test_uint_negative(typ, a):
 
 @pytest.mark.parametrize("typ", uint_types)
 @pytest.mark.parametrize("a", uint_valid_cases)
-@pytest.mark.parametrize("op", ['truediv', 'rtruediv', 'rlshift', 'rrshift'])
+@pytest.mark.parametrize("op", ['truediv', 'rtruediv'])
 def test_uint_bi_op_unsupported(typ, a, op):
     a_v = a(typ)
     uint_a = typ(a_v)
