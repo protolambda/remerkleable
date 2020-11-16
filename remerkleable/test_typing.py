@@ -399,3 +399,89 @@ def test_bitlist_iter():
             # Test iterator
             for i, bit in enumerate(b):
                 assert bool(bit) == bools[i]
+
+
+def test_container_inheritance():
+    class Foo(Container):
+        a: uint64
+        b: uint32
+
+    class Bar(Foo):
+        c: uint8
+
+    assert Foo.fields() == {'a': uint64, 'b': uint32}
+    assert Bar.fields() == {'a': uint64, 'b': uint32, 'c': uint8}
+    assert Foo._field_indices == {'a': 0, 'b': 1}
+    assert Bar._field_indices == {'a': 0, 'b': 1, 'c': 2}
+
+    foo = Foo(a=0xaabbccdd11223344, b=0x55667788)
+    assert foo.encode_bytes().hex() == "44332211ddccbbaa88776655"  # little endian!
+    bar = Bar(c=0x99)
+    assert bar.encode_bytes().hex() == "00000000000000000000000099"  # inits missing fields still
+    bar2 = Bar(a=0xaabbccdd11223344, b=0x55667788, c=0x99)
+    assert bar2.encode_bytes().hex() == "44332211ddccbbaa8877665599"
+
+    class ChocoBar(Bar):
+        aa: uint64
+
+    assert ChocoBar.fields() == {'a': uint64, 'b': uint32, 'c': uint8, 'aa': uint64}
+    assert ChocoBar._field_indices == {'a': 0, 'b': 1, 'c': 2, 'aa': 3}
+    cb = ChocoBar(a=0xaabbccdd11223344, b=0x55667788, c=0xaf, aa=0x0102030405060708)
+    assert cb.encode_bytes().hex() == "44332211ddccbbaa88776655af0807060504030201"
+
+    # multiple inheritance
+
+    class Mixin(Foo):
+        m: uint8
+
+    foo_mix = Mixin(a=0xaabbccdd11223344, b=0x55667788, m=0x99)
+    assert foo_mix.encode_bytes().hex() == "44332211ddccbbaa8877665599"
+
+    class Combined(Bar, Mixin):
+        ...
+
+    assert Combined.fields() == {'a': uint64, 'b': uint32, 'c': uint8, 'm': uint8}
+    assert Combined._field_indices == {'a': 0, 'b': 1, 'c': 2, 'm': 3}
+
+    combi = Combined(a=0xaabbccdd11223344, b=0x55667788, c=0x99, m=0x42)
+    assert combi.encode_bytes().hex() == "44332211ddccbbaa887766559942"
+
+    class Switcheroo(Mixin, Bar):
+        ...
+
+    assert Switcheroo.fields() == {'a': uint64, 'b': uint32, 'm': uint8, 'c': uint8}
+    assert Switcheroo._field_indices == {'a': 0, 'b': 1, 'm': 2, 'c': 3}
+
+    combi_switch = Switcheroo(a=0xaabbccdd11223344, b=0x55667788, c=0x99, m=0x42)
+    assert combi_switch.encode_bytes().hex() == "44332211ddccbbaa887766554299"
+    # fields are switched, while being different, hash tree roots should be different then
+    assert combi.hash_tree_root() != combi_switch.hash_tree_root()
+
+    class Duplicates(ChocoBar, Mixin, Foo):
+        ...
+
+    assert Duplicates.fields() == {'a': uint64, 'b': uint32, 'c': uint8, 'aa': uint64, 'm': uint8}
+    assert Duplicates._field_indices == {'a': 0, 'b': 1, 'c': 2, 'aa': 3, 'm': 4}
+
+    # overriding
+    class FancyChocoBar(ChocoBar):
+        aa: uint128
+
+    assert FancyChocoBar.fields() == {'a': uint64, 'b': uint32, 'c': uint8, 'aa': uint128}
+    assert FancyChocoBar._field_indices == {'a': 0, 'b': 1, 'c': 2, 'aa': 3}
+
+    fcb = FancyChocoBar(a=0xaabbccdd11223344, b=0x55667788, c=0xaf, aa=0x0102030405060708a1a2a3a4a5a6a7a8)
+    assert fcb.encode_bytes().hex() == "44332211ddccbbaa88776655afa8a7a6a5a4a3a2a10807060504030201"
+
+    # overriding and extending
+    class ExtendedFancyChocoBar(ChocoBar):
+        more: uint16
+        aa: uint128
+
+    # overriden field must stay in place
+    assert ExtendedFancyChocoBar.fields() == {'a': uint64, 'b': uint32, 'c': uint8, 'aa': uint128, 'more': uint16}
+    assert ExtendedFancyChocoBar._field_indices == {'a': 0, 'b': 1, 'c': 2, 'aa': 3, 'more': 4}
+
+    efcb = ExtendedFancyChocoBar(a=0xaabbccdd11223344, b=0x55667788, c=0xaf,
+                                 aa=0x0102030405060708a1a2a3a4a5a6a7a8, more=0xe1e2)
+    assert efcb.encode_bytes().hex() == "44332211ddccbbaa88776655afa8a7a6a5a4a3a2a10807060504030201e2e1"
