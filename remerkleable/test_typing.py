@@ -463,9 +463,9 @@ def test_container_inheritance():
     assert Duplicates.fields() == {'a': uint64, 'b': uint32, 'c': uint8, 'aa': uint64, 'm': uint8}
     assert Duplicates._field_indices == {'a': 0, 'b': 1, 'c': 2, 'aa': 3, 'm': 4}
 
-    # overriding
+    # overriding with different type
     class FancyChocoBar(ChocoBar):
-        aa: uint128
+        aa: uint128  # type: ignore
 
     assert FancyChocoBar.fields() == {'a': uint64, 'b': uint32, 'c': uint8, 'aa': uint128}
     assert FancyChocoBar._field_indices == {'a': 0, 'b': 1, 'c': 2, 'aa': 3}
@@ -476,7 +476,7 @@ def test_container_inheritance():
     # overriding and extending
     class ExtendedFancyChocoBar(ChocoBar):
         more: uint16
-        aa: uint128
+        aa: uint128  # type: ignore
 
     # overriden field must stay in place
     assert ExtendedFancyChocoBar.fields() == {'a': uint64, 'b': uint32, 'c': uint8, 'aa': uint128, 'more': uint16}
