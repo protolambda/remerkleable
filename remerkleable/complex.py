@@ -1,5 +1,5 @@
-from typing import NamedTuple, cast, List as PyList, Dict, Any, BinaryIO, Optional, TypeVar, Type, Protocol, \
-    runtime_checkable
+from typing import NamedTuple, cast, List as PyList, Dict, Any, BinaryIO, Optional,\
+    TypeVar, Type, Protocol, runtime_checkable
 from types import GeneratorType
 from textwrap import indent
 from collections.abc import Sequence as ColSequence
@@ -677,17 +677,33 @@ class _ContainerLike(Protocol):
 CV = TypeVar('CV', bound="Container")
 
 
-class Container(ComplexView):
-    # Container types should declare fields through class annotations.
-    # If none are specified, it will fall back on this (to avoid annotations of super classes),
-    # and error on construction, since empty container types are invalid.
-    _empty_annotations: bool
+class _ContainerBase(ComplexView):
+    def __new__(cls, *args, backing: Optional[Node] = None, hook: Optional[ViewHook] = None,
+                append_nodes: Optional[PyList[Node]] = None, **kwargs):
+        if backing is not None:
+            if len(args) != 0 or append_nodes is not None:
+                raise Exception("cannot have both a backing and elements to init fields")
+            return super().__new__(cls, backing=backing, hook=hook, **kwargs)
+        if append_nodes is None:
+            raise Exception("cannot init container without fields")
+
+        backing = subtree_fill_to_contents(append_nodes, cls.tree_depth())
+        out = super().__new__(cls, backing=backing, hook=hook)
+        return out
+
+    @classmethod
+    def fields(cls) -> Fields:  # base condition for the subclasses deriving the fields
+        return {}
+
+
+class Container(_ContainerBase):
     _field_indices: Dict[str, int]
 
-    def __new__(cls, *args, backing: Optional[Node] = None, hook: Optional[ViewHook] = None, **kwargs):
+    def __new__(cls, *args, backing: Optional[Node] = None, hook: Optional[ViewHook] = None,
+                append_nodes: Optional[PyList[Node]] = None, **kwargs):
         if backing is not None:
-            if len(args) != 0:
-                raise Exception("cannot have both a backing and elements to init List")
+            if len(args) != 0 or append_nodes is not None:
+                raise Exception("cannot have both a backing and elements to init fields")
             return super().__new__(cls, backing=backing, hook=hook, **kwargs)
 
         input_nodes = []
@@ -702,16 +718,20 @@ class Container(ComplexView):
             else:
                 fnode = ftyp.default_node()
             input_nodes.append(fnode)
+        # if this is the base of some container subclass, add the subclass nodes to the backing we are building.
+        if append_nodes is not None:
+            input_nodes.extend(append_nodes)
+
         # check if any keys are remaining to catch unrecognized keys
         if len(kwargs) > 0:
             raise AttributeError(f'The field names [{"".join(kwargs.keys())}] are not defined in {cls}')
-        backing = subtree_fill_to_contents(input_nodes, cls.tree_depth())
-        out = super().__new__(cls, backing=backing, hook=hook)
+
+        out = super().__new__(cls, hook=hook, append_nodes=input_nodes)
         return out
 
     def __init_subclass__(cls, *args, **kwargs):
         super().__init_subclass__(*args, **kwargs)
-        cls._field_indices = {fkey: i for i, fkey in enumerate(cls.__annotations__.keys()) if fkey[0] != '_'}
+        cls._field_indices = {fkey: i for i, fkey in enumerate(cls.fields())}
         if len(cls._field_indices) == 0:
             raise Exception(f"Container {cls.__name__} must have at least one field!")
 
@@ -721,7 +741,14 @@ class Container(ComplexView):
 
     @classmethod
     def fields(cls) -> Fields:
-        return cls.__annotations__
+        fields = {}
+        for b in cls.__bases__:
+            for k, v in b.fields().items():
+                fields[k] = v
+        for k, v in cls.__annotations__.items():
+            if k[0] != '_':
+                fields[k] = v  # if the key exists, overwrite it. Otherwise it extends the (ordered) dict.
+        return fields
 
     @classmethod
     def is_fixed_byte_length(cls) -> bool:
