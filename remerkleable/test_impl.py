@@ -9,6 +9,7 @@ from remerkleable.basic import boolean, bit, byte, uint8, uint16, uint32, uint64
 from remerkleable.bitfields import Bitvector, Bitlist
 from remerkleable.byte_arrays import ByteVector, ByteList
 from remerkleable.core import View, ObjType
+from remerkleable.union import Union
 from hashlib import sha256
 
 import json
@@ -175,6 +176,33 @@ test_data = [
        h(h(h(chunk("03"), chunk("")), zero_hashes[1]), chunk(""))),
      ("0x01" + ("00" * 95), "0x02" + ("00" * 95), "0x03" + ("00" * 95)),
      ),
+    ("simple_union", Union[1, [uint16, uint32]], Union[1, [uint16, uint32]](selected=0, value=uint16(0xaabb)),
+     "00bbaa", h(chunk("bbaa"), chunk("")), {'selected': 0, 'value': 0xaabb}),
+    ("simple_union_other", Union[1, [uint16, uint32]], Union[1, [uint16, uint32]](selected=1, value=uint32(0xdeadbeef)),
+     "01efbeadde", h(chunk("efbeadde"), chunk("01")), {'selected': 1, 'value': 0xdeadbeef}),
+    ("simple_large_union", Union[4, [uint16, uint32, uint8]], Union[4, [uint16, uint32, uint8]](selected=2, value=uint8(0xaa)),
+     "02000000aa", h(chunk("aa"), chunk("02")), {'selected': 2, 'value': 0xaa}),
+    ("duplicate_type_union", Union[1, [SingleFieldTestStruct, SingleFieldTestStruct]],
+     Union[1, [SingleFieldTestStruct, SingleFieldTestStruct]](selected=1, value=SingleFieldTestStruct(A=0xab)),
+     "01ab", h(chunk("ab"), chunk("01")), {'selected': 1, 'value': {'A': 0xab}}),
+    ("complex_union", Union[1, [Vector[uint8, 3], SingleFieldTestStruct, VarTestStruct, ComplexTestStruct, uint16]],
+     Union[1, [Vector[uint8, 3], SingleFieldTestStruct, VarTestStruct, ComplexTestStruct, uint16]](
+         selected=2, value=VarTestStruct(A=0xabcd, B=List[uint16, 1024](1, 2, 3), C=0xff)),
+        "02" + "cdab07000000ff010002000300", h(
+        h(
+            h(
+                chunk("cdab"),
+                h(
+                    merge(
+                        chunk("010002000300"),
+                        zero_hashes[0:6]
+                    ),
+                    chunk("03")  # length mix in
+                )
+            ),
+            h(chunk("ff"), chunk(""))
+        ), chunk("02")
+    ), {'selected': 2, 'value': {'A': 0xabcd, 'B': [1, 2, 3], 'C': 0xff}}),
     ("singleFieldTestStruct", SingleFieldTestStruct, SingleFieldTestStruct(A=0xab), "ab", chunk("ab"), {'A': 0xab}),
     ("uint16 list", List[uint16, 32], List[uint16, 32](uint16(0xaabb), uint16(0xc0ad), uint16(0xeeff)), "bbaaadc0ffee",
      h(h(chunk("bbaaadc0ffee"), chunk("")), chunk("03000000")),  # max length: 32 * 2 = 64 bytes = 2 chunks

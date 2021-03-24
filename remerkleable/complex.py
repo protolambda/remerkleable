@@ -8,7 +8,7 @@ import io
 from remerkleable.core import View, BasicView, OFFSET_BYTE_LENGTH, ViewHook, ObjType, ObjParseException
 from remerkleable.basic import uint256, uint8, uint32
 from remerkleable.tree import Node, subtree_fill_to_length, subtree_fill_to_contents,\
-    zero_node, Gindex, PairNode, to_gindex, NavigationError, get_depth
+    zero_node, Gindex, PairNode, to_gindex, NavigationError, get_depth, RIGHT_GINDEX
 from remerkleable.subtree import SubtreeView
 from remerkleable.readonly_iters import PackedIter, ComplexElemIter, ComplexFreshElemIter, ContainerElemIter
 
@@ -460,6 +460,8 @@ class List(MonoSubtreeView):
 
     @classmethod
     def key_to_static_gindex(cls, key: Any) -> Gindex:
+        if key == '__len__':
+            return RIGHT_GINDEX
         if key >= cls.limit():
             raise KeyError
         return super().key_to_static_gindex(key)
@@ -882,7 +884,8 @@ class Container(_ContainerBase):
                     fixed_size += OFFSET_BYTE_LENGTH
             if len(dyn_fields) > 0:
                 if dyn_fields[0].offset < fixed_size:
-                    raise Exception(f"first offset is smaller than expected fixed size")
+                    raise Exception(f"first offset {dyn_fields[0].offset} is "
+                                    f"smaller than expected fixed size {fixed_size}")
                 for i, (fkey, ftyp, foffset) in enumerate(dyn_fields):
                     next_offset = dyn_fields[i + 1].offset if i + 1 < len(dyn_fields) else scope
                     if foffset > next_offset:
