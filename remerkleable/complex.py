@@ -882,7 +882,7 @@ class Container(_ContainerBase):
                     fixed_size += OFFSET_BYTE_LENGTH
             if len(dyn_fields) > 0:
                 if dyn_fields[0].offset < fixed_size:
-                    raise Exception(f"first offset is smaller than expected fixed size")
+                    raise Exception("first offset is smaller than expected fixed size")
                 for i, (fkey, ftyp, foffset) in enumerate(dyn_fields):
                     next_offset = dyn_fields[i + 1].offset if i + 1 < len(dyn_fields) else scope
                     if foffset > next_offset:

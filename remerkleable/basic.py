@@ -165,7 +165,7 @@ class uint(int, BasicView):
         return self.__or__(other)
 
     def __neg__(self):
-        raise OperationNotSupported(f"Cannot make uint type negative! If intentional, cast to signed int first.")
+        raise OperationNotSupported("Cannot make uint type negative! If intentional, cast to signed int first.")
 
     def __invert__(self: T) -> T:
         mask = (1 << (self.type_byte_length() << 3)) - 1
