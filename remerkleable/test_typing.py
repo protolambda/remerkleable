@@ -401,6 +401,23 @@ def test_bitlist_iter():
                 assert bool(bit) == bools[i]
 
 
+def test_bitlist_access():
+    bf = Bitlist[200](i % 2 == 1 for i in range(200))
+    assert bf[int(123)]
+    assert bf[uint64(123)]
+    assert not bf[uint64(124)]
+    assert not bf[uint8(42)]
+    assert bf[uint8(43)]
+
+    assert bf[len(bf)-1]
+    bf.pop()
+    assert not bf[len(bf)-1]
+    bf.pop()
+    assert bf[len(bf)-1]
+    bf.append(True)
+    assert bf[len(bf)-1]
+
+
 def test_container_inheritance():
     class Foo(Container):
         a: uint64

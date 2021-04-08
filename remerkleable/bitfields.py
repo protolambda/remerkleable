@@ -37,6 +37,7 @@ class BitsView(BackedView, ColSequence):
 
     def get(self, i: int) -> boolean:
         ll = self.length()
+        i = int(i)  # downcast, access type can have stricter bit operation typing than necessary.
         if i >= ll:
             raise NavigationError(f"cannot get bit {i} in bits of length {ll}")
         chunk_i = i >> 8
@@ -46,6 +47,7 @@ class BitsView(BackedView, ColSequence):
 
     def set(self, i: int, v: boolean) -> None:
         ll = self.length()
+        i = int(i)  # downcast, access type can have stricter bit operation typing than necessary.
         if i >= ll:
             raise NavigationError(f"cannot set bit {i} in bits of length {ll}")
         chunk_i = i >> 8
