@@ -1,6 +1,14 @@
 Changelog
 ==========
 
+v0.1.19
+--------
+- Bitfield access lookup-index type coercion fix
+
+v0.1.18
+--------
+- Container extensions / inheritance
+
 v0.1.17
 --------
 
