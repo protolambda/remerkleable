@@ -512,12 +512,12 @@ def test_union():
     zero_hash = b"\x00" * 32
     assert foo.hash_tree_root() == merkle_hash(zero_hash, zero_hash)
     assert foo.value() == uint32(0)
-    assert foo.selected_index() == 0
+    assert foo.selector() == 0
     assert foo.selected_type() == uint32
 
-    foo1 = Union[uint32, uint16](selected=1)
+    foo1 = Union[uint32, uint16](selector=1)
     assert foo1.value() == uint16(0)
-    assert foo1.selected_index() == 1
+    assert foo1.selector() == 1
     assert foo1.selected_type() == uint16
 
     # overriding and extending
@@ -534,7 +534,7 @@ def test_union():
 
     assert foo2.hash_tree_root() == merkle_hash(uint16(3).hash_tree_root(), uint256(2).hash_tree_root())
     assert foo2.value() == uint16(3)
-    assert foo2.selected_index() == 2
+    assert foo2.selector() == 2
     assert foo2.selected_type() == uint16
 
     # No union with just a None option
@@ -558,14 +558,14 @@ def test_union():
     except TypeError:
         pass
 
-    data = {'selected': 2, 'value': '0x0123'}
+    data = {'selector': 2, 'value': '0x0123'}
     data_typ = Union[uint32, uint8, uint64]
     quix = data_typ.from_obj(data)
     assert quix.value() == 0x2301
-    assert quix.selected_index() == 2
+    assert quix.selector() == 2
 
     data_back = quix.to_obj()
-    assert data_back['selected'] == 2
+    assert data_back['selector'] == 2
     assert data_back['value'] == 0x2301
     assert len(data_back) == 2
 

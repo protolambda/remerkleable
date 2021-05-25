@@ -176,23 +176,24 @@ test_data = [
        h(h(h(chunk("03"), chunk("")), zero_hashes[1]), chunk(""))),
      ("0x01" + ("00" * 95), "0x02" + ("00" * 95), "0x03" + ("00" * 95)),
      ),
-    ("simple_union", Union[uint16, uint32], Union[uint16, uint32](selected=0, value=uint16(0xaabb)),
-     "00bbaa", h(chunk("bbaa"), chunk("")), {'selected': 0, 'value': 0xaabb}),
-    ("union with none", Union[None, uint16, uint32], Union[None, uint16, uint32](selected=0, value=None),
-     "00", h(chunk(""), chunk("")), {'selected': 0, 'value': None}),
+    ("simple_union", Union[uint16, uint32], Union[uint16, uint32](selector=0, value=uint16(0xaabb)),
+     "00bbaa", h(chunk("bbaa"), chunk("")), {'selector': 0, 'value': 0xaabb}),
+    ("union with none", Union[None, uint16, uint32], Union[None, uint16, uint32](selector=0, value=None),
+     "00", h(chunk(""), chunk("")), {'selector': 0, 'value': None}),
     ("union other than none", Union[None, uint16, uint32],
-     Union[None, uint16, uint32](selected=1, value=uint16(0xaabb)),
-     "01bbaa", h(chunk("bbaa"), chunk("01")), {'selected': 1, 'value': 0xaabb}),
-    ("simple_union_other", Union[uint16, uint32], Union[uint16, uint32](selected=1, value=uint32(0xdeadbeef)),
-     "01efbeadde", h(chunk("efbeadde"), chunk("01")), {'selected': 1, 'value': 0xdeadbeef}),
-    ("simple_large_union", Union[uint16, uint32, uint8, List[uint16, 8]], Union[uint16, uint32, uint8, List[uint16, 8]](selected=2, value=uint8(0xaa)),
-     "02aa", h(chunk("aa"), chunk("02")), {'selected': 2, 'value': 0xaa}),
+     Union[None, uint16, uint32](selector=1, value=uint16(0xaabb)),
+     "01bbaa", h(chunk("bbaa"), chunk("01")), {'selector': 1, 'value': 0xaabb}),
+    ("simple_union_other", Union[uint16, uint32], Union[uint16, uint32](selector=1, value=uint32(0xdeadbeef)),
+     "01efbeadde", h(chunk("efbeadde"), chunk("01")), {'selector': 1, 'value': 0xdeadbeef}),
+    ("simple_large_union", Union[uint16, uint32, uint8, List[uint16, 8]],
+     Union[uint16, uint32, uint8, List[uint16, 8]](selector=2, value=uint8(0xaa)),
+     "02aa", h(chunk("aa"), chunk("02")), {'selector': 2, 'value': 0xaa}),
     ("duplicate_type_union", Union[SingleFieldTestStruct, SingleFieldTestStruct],
-     Union[SingleFieldTestStruct, SingleFieldTestStruct](selected=1, value=SingleFieldTestStruct(A=0xab)),
-     "01ab", h(chunk("ab"), chunk("01")), {'selected': 1, 'value': {'A': 0xab}}),
+     Union[SingleFieldTestStruct, SingleFieldTestStruct](selector=1, value=SingleFieldTestStruct(A=0xab)),
+     "01ab", h(chunk("ab"), chunk("01")), {'selector': 1, 'value': {'A': 0xab}}),
     ("complex_union", Union[Vector[uint8, 3], SingleFieldTestStruct, VarTestStruct, ComplexTestStruct, uint16],
      Union[Vector[uint8, 3], SingleFieldTestStruct, VarTestStruct, ComplexTestStruct, uint16](
-         selected=2, value=VarTestStruct(A=0xabcd, B=List[uint16, 1024](1, 2, 3), C=0xff)),
+         selector=2, value=VarTestStruct(A=0xabcd, B=List[uint16, 1024](1, 2, 3), C=0xff)),
         "02" + "cdab07000000ff010002000300", h(
         h(
             h(
@@ -207,7 +208,7 @@ test_data = [
             ),
             h(chunk("ff"), chunk(""))
         ), chunk("02")
-    ), {'selected': 2, 'value': {'A': 0xabcd, 'B': [1, 2, 3], 'C': 0xff}}),
+    ), {'selector': 2, 'value': {'A': 0xabcd, 'B': [1, 2, 3], 'C': 0xff}}),
     ("singleFieldTestStruct", SingleFieldTestStruct, SingleFieldTestStruct(A=0xab), "ab", chunk("ab"), {'A': 0xab}),
     ("uint16 list", List[uint16, 32], List[uint16, 32](uint16(0xaabb), uint16(0xc0ad), uint16(0xeeff)), "bbaaadc0ffee",
      h(h(chunk("bbaaadc0ffee"), chunk("")), chunk("03000000")),  # max length: 32 * 2 = 64 bytes = 2 chunks

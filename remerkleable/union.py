@@ -12,10 +12,10 @@ V = TypeVar('V', bound=View)
 
 
 class Union(BackedView):
-    def __new__(cls, *args, selected: Optional[int] = None, value: PyUnion[View, None] = None,
+    def __new__(cls, *args, selector: Optional[int] = None, value: PyUnion[View, None] = None,
                 backing: Optional[Node] = None, hook: Optional[ViewHook] = None, **kwargs):
         """
-        Create a value instance of a union, use selected=2, value=uint64(123) on
+        Create a value instance of a union, use selector=2, value=uint64(123) on
         a Union[uint32, Bitvector, uint64] to wrap an instance of the uint64 in the union type.
         The Union type parameters define the list of options.
         """
@@ -27,12 +27,12 @@ class Union(BackedView):
         options = cls.options()
 
         selected_backing: Node
-        if selected is not None:
+        if selector is not None:
             option_count = len(options)
-            if selected >= option_count:
-                raise ValueError(f"selected index {selected} was out of option range {option_count}")
+            if selector >= option_count:
+                raise ValueError(f"selected index {selector} was out of option range {option_count}")
 
-            selected_type = options[selected]
+            selected_type = options[selector]
             if selected_type is None:
                 if value is not None:
                     raise ValueError(f"selected None option, but value is not None: {value}")
@@ -43,10 +43,10 @@ class Union(BackedView):
                 else:
                     selected_backing = selected_type.default_node()
         else:
-            selected = 0
+            selector = 0
             if value is not None:
-                raise ValueError(f"cannot default 'selected' arg to 0 with explicit 'value': {value}")
-            selected_type = options[selected]
+                raise ValueError(f"cannot default 'selector' arg to 0 with explicit 'value': {value}")
+            selected_type = options[selector]
             if selected_type is None:
                 selected_backing = zero_node(0)
             else:
@@ -54,7 +54,7 @@ class Union(BackedView):
 
         backing = PairNode(
             left=selected_backing,
-            right=uint256(selected).get_backing())
+            right=uint256(selector).get_backing())
         return super().__new__(cls, backing=backing, hook=hook, **kwargs)
 
     def __class_getitem__(cls, *union_options) -> Type["Union"]:
@@ -89,7 +89,7 @@ class Union(BackedView):
     def options(cls) -> Options:
         raise NotImplementedError
 
-    def selected_index(self) -> int:
+    def selector(self) -> int:
         selector_node = super().get_backing().get_right()
         selector = int(cast(uint256, uint256.view_from_backing(node=selector_node, hook=None)))
         option_count = len(self.__class__.options())
@@ -98,7 +98,7 @@ class Union(BackedView):
         return selector
 
     def selected_type(self) -> PyUnion[Type[View], None]:
-        return self.__class__.options()[self.selected_index()]
+        return self.__class__.options()[self.selector()]
 
     def value(self) -> PyUnion[View, None]:
         value_node = super().get_backing().get_left()
@@ -120,15 +120,15 @@ class Union(BackedView):
         else:
             return 1 + value.value_byte_length()
 
-    def change(self, selected: int, value: PyUnion[View, None]):
+    def change(self, selector: int, value: PyUnion[View, None]):
         options = self.__class__.options()
         option_count = len(options)
-        if selected >= option_count:
-            raise KeyError(f"selected index {selected} was out of option range {option_count}")
-        selected_type = options[selected]
+        if selector >= option_count:
+            raise KeyError(f"selected index {selector} was out of option range {option_count}")
+        selected_type = options[selector]
         if value is None:
             if selected_type is not None:
-                raise TypeError(f"Tried to set union to selector {selected} to None,"
+                raise TypeError(f"Tried to set union to selector {selector} to None,"
                                 f" but type is {repr(selected_type)}, not None")
         selected_node: Node
         if selected_type is None:
@@ -139,13 +139,13 @@ class Union(BackedView):
             selected_node = selected_type.coerce_view(value).get_backing()
         self.set_backing(PairNode(
             left=selected_node,
-            right=uint256(selected).get_backing()))
+            right=uint256(selector).get_backing()))
 
     def __repr__(self):
         val_repr = repr(self.value())
         if '\n' in val_repr:
             val_repr = '\n' + indent(val_repr, '  ')
-        return f"{self.__class__.type_repr()}:\n  selected={self.selected_index()}\n  value={val_repr}"
+        return f"{self.__class__.type_repr()}:\n  selector={self.selector()}\n  value={val_repr}"
 
     @classmethod
     def type_repr(cls) -> str:
@@ -217,23 +217,23 @@ class Union(BackedView):
     @classmethod
     def from_obj(cls: Type[V], obj: ObjType) -> V:
         if not isinstance(obj, dict):
-            raise ValueError("expected dict with 'selected' and 'value' keys")
-        selected_index = obj["selected"]
-        selected_type = cls.options()[selected_index]
+            raise ValueError("expected dict with 'selector' and 'value' keys")
+        selector = obj["selector"]
+        selected_type = cls.options()[selector]
         if selected_type is None:
             if obj["value"] is not None:
-                raise ValueError("expected None value for selected None type")
+                raise ValueError("expected None value for selector None type")
             value = None
         else:
             value = selected_type.from_obj(obj["value"])
-        return cls(selected=selected_index, value=value)  # type: ignore
+        return cls(selector=selector, value=value)  # type: ignore
 
     def to_obj(self) -> ObjType:
         value = self.value()
         if value is None:
-            return {'selected': self.selected_index(), 'value': None}
+            return {'selector': self.selector(), 'value': None}
         else:
-            return {'selected': self.selected_index(), 'value': value.to_obj()}
+            return {'selector': self.selector(), 'value': value.to_obj()}
 
     def encode_bytes(self) -> bytes:
         stream = io.BytesIO()
@@ -252,20 +252,20 @@ class Union(BackedView):
     def deserialize(cls: Type[V], stream: BinaryIO, scope: int) -> V:
         if scope < 1:
             raise ValueError("scope too small, cannot read Union selector")
-        selected = int.from_bytes(stream.read(1), byteorder='little')
+        selector = int.from_bytes(stream.read(1), byteorder='little')
         options = cls.options()
         option_count = len(options)
-        if selected >= option_count:
-            raise ValueError(f"selected index {selected} was out of option range {option_count}")
-        selected_type = options[selected]
+        if selector >= option_count:
+            raise ValueError(f"selected index {selector} was out of option range {option_count}")
+        selected_type = options[selector]
         if selected_type is None:
             value = None
         else:
             value = selected_type.deserialize(stream, scope - 1)
-        return cls(selected=selected, value=value)  # type: ignore
+        return cls(selector=selector, value=value)  # type: ignore
 
     def serialize(self, stream: BinaryIO) -> int:
-        stream.write(self.selected_index().to_bytes(length=1, byteorder='little'))
+        stream.write(self.selector().to_bytes(length=1, byteorder='little'))
         value = self.value()
         if value is None:
             return 1
