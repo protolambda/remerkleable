@@ -1,4 +1,4 @@
-from typing import cast, Sequence, Any, BinaryIO, Optional, TypeVar, Type
+from typing import cast, Sequence, Any, BinaryIO, Optional, TypeVar, Type, Union as PyUnion
 from textwrap import indent
 import io
 from remerkleable.core import View, BackedView, ViewHook, ObjType
@@ -6,66 +6,84 @@ from remerkleable.basic import uint256
 from remerkleable.tree import Node, zero_node, Gindex, PairNode
 from remerkleable.tree import LEFT_GINDEX, RIGHT_GINDEX
 
-Options = Sequence[Type[View]]
+Options = Sequence[PyUnion[Type[View], None]]
 
 V = TypeVar('V', bound=View)
 
 
 class Union(BackedView):
-    def __new__(cls, *args, backing: Optional[Node] = None, hook: Optional[ViewHook] = None, **kwargs):
+    def __new__(cls, *args, selected: Optional[int] = None, value: PyUnion[View, None] = None,
+                backing: Optional[Node] = None, hook: Optional[ViewHook] = None, **kwargs):
         """
         Create a value instance of a union, use selected=2, value=uint64(123) on
-        a Union[1, [uint32, Bitvector, uint64]] to wrap an instance of the uint64 in the union type.
-        The first type parameter is used to set the byte-length of the selector value,
-        the second is a list of type options.
+        a Union[uint32, Bitvector, uint64] to wrap an instance of the uint64 in the union type.
+        The Union type parameters define the list of options.
         """
         if backing is not None:
             if len(args) != 0:
                 raise Exception("cannot have both a backing and elements to init Union")
             return super().__new__(cls, backing=backing, hook=hook, **kwargs)
 
-        selected = kwargs.pop('selected')
-        value = kwargs.pop('value')
-
         options = cls.options()
-        option_count = len(options)
-        if selected >= option_count:
-            raise Exception(f"selected index {selected} was out of option range {option_count}")
-        selected_type = options[selected]
-        selected_value = selected_type.coerce_view(value)
+
+        selected_backing: Node
+        if selected is not None:
+            option_count = len(options)
+            if selected >= option_count:
+                raise ValueError(f"selected index {selected} was out of option range {option_count}")
+
+            selected_type = options[selected]
+            if selected_type is None:
+                if value is not None:
+                    raise ValueError(f"selected None option, but value is not None: {value}")
+                selected_backing = zero_node(0)
+            else:
+                if value is not None:
+                    selected_backing = selected_type.coerce_view(value).get_backing()
+                else:
+                    selected_backing = selected_type.default_node()
+        else:
+            selected = 0
+            if value is not None:
+                raise ValueError(f"cannot default 'selected' arg to 0 with explicit 'value': {value}")
+            selected_type = options[selected]
+            if selected_type is None:
+                selected_backing = zero_node(0)
+            else:
+                selected_backing = selected_type.default_node()
+
         backing = PairNode(
-            left=selected_value.get_backing(),
+            left=selected_backing,
             right=uint256(selected).get_backing())
         return super().__new__(cls, backing=backing, hook=hook, **kwargs)
 
-    def __class_getitem__(cls, params) -> Type["Union"]:
-        if len(params) != 2:
-            raise Exception("expected two Union type params: selector byte size, and a list of type options")
-        (union_selector_byte_size, union_options) = params
-        union_selector_byte_size = int(union_selector_byte_size)
-        union_options = list(union_options)
-        if union_selector_byte_size < 1:
-            raise Exception(f"union selector byte size {union_selector_byte_size} is too small")
+    def __class_getitem__(cls, *union_options) -> Type["Union"]:
         if len(union_options) < 1:
-            raise Exception("No type options to select")
-        if not all(map(lambda x: issubclass(x, View), union_options)):
-            raise Exception("Not all type options are a View type")
+            raise TypeError("expected at least one Union type option")
+        if len(union_options) > 128:
+            raise TypeError(f"expected no more than 128 type options, but got {len(union_options)}")
+
+        union_options_list: Sequence[PyUnion[Type[View], None]] = list(*union_options)
+
+        for (i, x) in enumerate(union_options_list):
+            if x is None and i == 0:
+                continue
+            if x is None:
+                raise TypeError(f"only option 0 can be None as type, index {i} cannot be None")
+            if issubclass(x, View):
+                continue
+            raise TypeError(f"Not all type options are a View type, index {i} is wrong")
+
+        if union_options_list[0] is None and len(union_options_list) < 2:
+            raise TypeError("Union with a None option must have at least 2 options")
 
         class SpecialUnionView(Union):
             @classmethod
-            def selector_byte_size(cls) -> int:
-                return union_selector_byte_size
-
-            @classmethod
             def options(cls) -> Options:
-                return union_options
+                return union_options_list
 
         SpecialUnionView.__name__ = SpecialUnionView.type_repr()
         return SpecialUnionView
-
-    @classmethod
-    def selector_byte_size(cls) -> int:
-        raise NotImplementedError
 
     @classmethod
     def options(cls) -> Options:
@@ -74,21 +92,20 @@ class Union(BackedView):
     def selected_index(self) -> int:
         selector_node = super().get_backing().get_right()
         selector = int(cast(uint256, uint256.view_from_backing(node=selector_node, hook=None)))
-        selector_max_byte_size = self.__class__.selector_byte_size()
-        if selector.bit_length() > selector_max_byte_size * 8:
-            raise Exception(f"union selected_index backing value is unexpectedly large: {selector},"
-                            f" max expected byte size: {selector_max_byte_size}")
         option_count = len(self.__class__.options())
         if selector >= option_count:
-            raise Exception(f"union selector was {selector}, expected less than {option_count}")
+            raise KeyError(f"union selector was {selector}, expected less than {option_count}")
         return selector
 
-    def selected_type(self) -> Type[View]:
+    def selected_type(self) -> PyUnion[Type[View], None]:
         return self.__class__.options()[self.selected_index()]
 
-    def value(self) -> View:
+    def value(self) -> PyUnion[View, None]:
         value_node = super().get_backing().get_left()
         selected_type = self.selected_type()
+        if selected_type is None:
+            assert value_node.root == zero_node(0).root
+            return None
 
         def handle_change(v: View) -> None:
             self.get_backing().setter(LEFT_GINDEX)(v.get_backing())
@@ -96,17 +113,32 @@ class Union(BackedView):
         return selected_type.view_from_backing(value_node, handle_change)
 
     def value_byte_length(self) -> int:
-        return self.selector_byte_size() + self.value().value_byte_length()
+        # 1 byte for the selector
+        value = self.value()
+        if value is None:
+            return 1
+        else:
+            return 1 + value.value_byte_length()
 
-    def change(self, selected: int, value: View):
+    def change(self, selected: int, value: PyUnion[View, None]):
         options = self.__class__.options()
         option_count = len(options)
         if selected >= option_count:
-            raise Exception(f"selected index {selected} was out of option range {option_count}")
+            raise KeyError(f"selected index {selected} was out of option range {option_count}")
         selected_type = options[selected]
-        selected_value = selected_type.coerce_view(value)
+        if value is None:
+            if selected_type is not None:
+                raise TypeError(f"Tried to set union to selector {selected} to None,"
+                                f" but type is {repr(selected_type)}, not None")
+        selected_node: Node
+        if selected_type is None:
+            if value is not None:
+                raise TypeError("When selecting None as type, the value must be none")
+            selected_node = zero_node(0)
+        else:
+            selected_node = selected_type.coerce_view(value).get_backing()
         self.set_backing(PairNode(
-            left=selected_value.get_backing(),
+            left=selected_node,
             right=uint256(selected).get_backing()))
 
     def __repr__(self):
@@ -117,7 +149,12 @@ class Union(BackedView):
 
     @classmethod
     def type_repr(cls) -> str:
-        return f"Union[{cls.selector_byte_size()}, [{', '.join(map(lambda x: x.type_repr(), cls.options()))}]]"
+        def repr_option(x: PyUnion[Type[View], None]) -> str:
+            if x is None:
+                return 'None'
+            else:
+                return x.type_repr()
+        return f"Union[{', '.join(map(repr_option, cls.options()))}]"
 
     @classmethod
     def is_packed(cls) -> bool:
@@ -139,11 +176,21 @@ class Union(BackedView):
     def key_to_static_gindex(cls, key: Any) -> Gindex:
         if key == '__selector__':
             return RIGHT_GINDEX
+        if not isinstance(key, int):
+            raise TypeError(f"expected integer key, got {key}")
+        if not cls.is_valid_selector(int(key)):
+            raise KeyError(f"key {key} is not a valid selector for union {repr(cls)}")
         return LEFT_GINDEX
 
     @classmethod
     def default_node(cls) -> Node:
-        return PairNode(cls.options()[0].default_node(), zero_node(0))  # mix-in 0 as selector
+        default_option = cls.options()[0]
+        content_node: Node
+        if default_option is None:
+            content_node = zero_node(0)
+        else:
+            content_node = default_option.default_node()
+        return PairNode(content_node, zero_node(0))  # mix-in 0 as selector
 
     @classmethod
     def is_fixed_byte_length(cls) -> bool:
@@ -151,23 +198,42 @@ class Union(BackedView):
 
     @classmethod
     def min_byte_length(cls) -> int:
-        return cls.selector_byte_size() + min(map(lambda x: x.min_byte_length(), cls.options()))
+        def min_option_size(x: PyUnion[Type[View], None]) -> int:
+            if x is None:
+                return 0
+            else:
+                return x.min_byte_length()
+        return 1 + min(map(min_option_size, cls.options()))
 
     @classmethod
     def max_byte_length(cls) -> int:
-        return cls.selector_byte_size() + max(map(lambda x: x.min_byte_length(), cls.options()))
+        def max_option_size(x: PyUnion[Type[View], None]) -> int:
+            if x is None:
+                return 0
+            else:
+                return x.max_byte_length()
+        return 1 + max(map(max_option_size, cls.options()))
 
     @classmethod
     def from_obj(cls: Type[V], obj: ObjType) -> V:
         if not isinstance(obj, dict):
-            raise Exception("expected dict with 'selected' and 'value' keys")
+            raise ValueError("expected dict with 'selected' and 'value' keys")
         selected_index = obj["selected"]
         selected_type = cls.options()[selected_index]
-        value = selected_type.from_obj(obj["value"])
+        if selected_type is None:
+            if obj["value"] is not None:
+                raise ValueError("expected None value for selected None type")
+            value = None
+        else:
+            value = selected_type.from_obj(obj["value"])
         return cls(selected=selected_index, value=value)  # type: ignore
 
     def to_obj(self) -> ObjType:
-        return {'selected': self.selected_index(), 'value': self.value().to_obj()}
+        value = self.value()
+        if value is None:
+            return {'selected': self.selected_index(), 'value': None}
+        else:
+            return {'selected': self.selected_index(), 'value': value.to_obj()}
 
     def encode_bytes(self) -> bytes:
         stream = io.BytesIO()
@@ -184,19 +250,24 @@ class Union(BackedView):
 
     @classmethod
     def deserialize(cls: Type[V], stream: BinaryIO, scope: int) -> V:
-        selector_size = cls.selector_byte_size()
-        if selector_size > scope:
-            raise Exception("scope too small, cannot read Union selector")
-        selected = int.from_bytes(stream.read(selector_size), byteorder='little')
+        if scope < 1:
+            raise ValueError("scope too small, cannot read Union selector")
+        selected = int.from_bytes(stream.read(1), byteorder='little')
         options = cls.options()
         option_count = len(options)
         if selected >= option_count:
-            raise Exception(f"selected index {selected} was out of option range {option_count}")
+            raise ValueError(f"selected index {selected} was out of option range {option_count}")
         selected_type = options[selected]
-        value = selected_type.deserialize(stream, scope - selector_size)
+        if selected_type is None:
+            value = None
+        else:
+            value = selected_type.deserialize(stream, scope - 1)
         return cls(selected=selected, value=value)  # type: ignore
 
     def serialize(self, stream: BinaryIO) -> int:
-        selector_size = self.selector_byte_size()
-        stream.write(self.selected_index().to_bytes(length=selector_size, byteorder='little'))
-        return selector_size + self.value().serialize(stream)
+        stream.write(self.selected_index().to_bytes(length=1, byteorder='little'))
+        value = self.value()
+        if value is None:
+            return 1
+        else:
+            return 1 + value.serialize(stream)

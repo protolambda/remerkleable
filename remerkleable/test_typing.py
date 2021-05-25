@@ -10,7 +10,8 @@ from remerkleable.basic import boolean, bit, uint, byte, uint8, uint16, uint32, 
 from remerkleable.bitfields import Bitvector, Bitlist
 from remerkleable.byte_arrays import ByteVector, Bytes1, Bytes4, Bytes8, Bytes32, Bytes48, Bytes96
 from remerkleable.core import BasicView, View
-from remerkleable.tree import get_depth
+from remerkleable.union import Union
+from remerkleable.tree import get_depth, merkle_hash, LEFT_GINDEX, RIGHT_GINDEX
 
 
 def expect_op_error(fn, msg):
@@ -502,3 +503,75 @@ def test_container_inheritance():
     efcb = ExtendedFancyChocoBar(a=0xaabbccdd11223344, b=0x55667788, c=0xaf,
                                  aa=0x0102030405060708a1a2a3a4a5a6a7a8, more=0xe1e2)
     assert efcb.encode_bytes().hex() == "44332211ddccbbaa88776655afa8a7a6a5a4a3a2a10807060504030201e2e1"
+
+
+def test_union():
+    # test default node
+    foo = Union[uint32, uint16]()
+    # 0 selector, 0 value
+    zero_hash = b"\x00" * 32
+    assert foo.hash_tree_root() == merkle_hash(zero_hash, zero_hash)
+    assert foo.value() == uint32(0)
+    assert foo.selected_index() == 0
+    assert foo.selected_type() == uint32
+
+    foo1 = Union[uint32, uint16](selected=1)
+    assert foo1.value() == uint16(0)
+    assert foo1.selected_index() == 1
+    assert foo1.selected_type() == uint16
+
+    # overriding and extending
+    class Example(Container):
+        more: uint16
+        aa: uint128
+
+    foo2 = Union[Example, uint64, uint16, uint128]()
+    # 0 selector, default value
+    assert foo2.hash_tree_root() == merkle_hash(merkle_hash(zero_hash, zero_hash), zero_hash)
+
+    # change the selected value
+    foo2.change(2, uint16(3))
+
+    assert foo2.hash_tree_root() == merkle_hash(uint16(3).hash_tree_root(), uint256(2).hash_tree_root())
+    assert foo2.value() == uint16(3)
+    assert foo2.selected_index() == 2
+    assert foo2.selected_type() == uint16
+
+    # No union with just a None option
+    try:
+        bar = Union[None]
+        assert False
+    except TypeError:
+        pass
+
+    # None type must always be the first option
+    try:
+        bar = Union[uint32, None]
+        assert False
+    except TypeError:
+        pass
+
+    # No more None types
+    try:
+        bar = Union[None, uint16, None]
+        assert False
+    except TypeError:
+        pass
+
+    data = {'selected': 2, 'value': '0x0123'}
+    data_typ = Union[uint32, uint8, uint64]
+    quix = data_typ.from_obj(data)
+    assert quix.value() == 0x2301
+    assert quix.selected_index() == 2
+
+    data_back = quix.to_obj()
+    assert data_back['selected'] == 2
+    assert data_back['value'] == 0x2301
+    assert len(data_back) == 2
+
+    assert Union[None, uint64]().to_obj()['value'] is None
+
+    gindex_test_typ = Union[None, uint16, uint64]
+    assert gindex_test_typ.key_to_static_gindex('__selector__') == RIGHT_GINDEX
+    assert gindex_test_typ.key_to_static_gindex(0) == LEFT_GINDEX
+    assert gindex_test_typ.key_to_static_gindex(1) == LEFT_GINDEX
