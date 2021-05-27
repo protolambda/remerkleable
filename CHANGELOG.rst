@@ -1,6 +1,10 @@
 Changelog
 ==========
 
+v0.1.20
+--------
+- Union type support
+
 v0.1.19
 --------
 - Bitfield access lookup-index type coercion fix

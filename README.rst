@@ -29,6 +29,7 @@ Features
     - custom byte-vector and byte-list view for Python bytes-like behavior
     - bitfields: bitlist, bitvector
     - list, container, vector
+    - union
     - basic types
 - Functionality:
     - **Serialize** all types. Into output stream (returning the written count) and as ``bytes``
