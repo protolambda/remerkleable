@@ -1,6 +1,10 @@
 Changelog
 ==========
 
+v0.1.21
+--------
+- Fix single-type-param Union
+
 v0.1.20
 --------
 - Union type support
