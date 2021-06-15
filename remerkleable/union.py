@@ -1,7 +1,7 @@
 from typing import cast, Sequence, Any, BinaryIO, Optional, TypeVar, Type, Union as PyUnion
 from textwrap import indent
 import io
-from remerkleable.core import View, BackedView, ViewHook, ObjType
+from remerkleable.core import View, BackedView, ViewHook, ObjType, ViewMeta
 from remerkleable.basic import uint256
 from remerkleable.tree import Node, zero_node, Gindex, PairNode
 from remerkleable.tree import LEFT_GINDEX, RIGHT_GINDEX
@@ -63,7 +63,10 @@ class Union(BackedView):
         if len(union_options) > 128:
             raise TypeError(f"expected no more than 128 type options, but got {len(union_options)}")
 
-        union_options_list: Sequence[PyUnion[Type[View], None]] = list(*union_options)
+        if isinstance(*union_options, ViewMeta):
+            union_options_list: Sequence[PyUnion[Type[View], None]] = list(union_options)
+        else:
+            union_options_list: Sequence[PyUnion[Type[View], None]] = list(*union_options)
 
         for (i, x) in enumerate(union_options_list):
             if x is None and i == 0:

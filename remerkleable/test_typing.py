@@ -537,6 +537,9 @@ def test_union():
     assert foo2.selector() == 2
     assert foo2.selected_type() == uint16
 
+    # Only one non-none option
+    foo = Union[uint32]()
+
     # No union with just a None option
     try:
         bar = Union[None]

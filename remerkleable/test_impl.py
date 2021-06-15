@@ -176,6 +176,8 @@ test_data = [
        h(h(h(chunk("03"), chunk("")), zero_hashes[1]), chunk(""))),
      ("0x01" + ("00" * 95), "0x02" + ("00" * 95), "0x03" + ("00" * 95)),
      ),
+    ("single_type_union", Union[uint16], Union[uint16](selector=0, value=uint16(0xaabb)),
+     "00bbaa", h(chunk("bbaa"), chunk("")), {'selector': 0, 'value': 0xaabb}),
     ("simple_union", Union[uint16, uint32], Union[uint16, uint32](selector=0, value=uint16(0xaabb)),
      "00bbaa", h(chunk("bbaa"), chunk("")), {'selector': 0, 'value': 0xaabb}),
     ("union with none", Union[None, uint16, uint32], Union[None, uint16, uint32](selector=0, value=None),
