@@ -537,6 +537,22 @@ def test_union():
     assert foo2.selector() == 2
     assert foo2.selected_type() == uint16
 
+    # Only one non-none option
+    foo = Union[uint32]()
+    assert foo.options() == [uint32]
+
+    # Max options (128)
+    max_opts = [uint32] + ([uint16] * 126) + [uint8]
+    bar = Union.__class_getitem__(tuple(max_opts))
+    assert bar.options() == list(max_opts)
+
+    # No union with too many options
+    try:
+        bar = Union.__class_getitem__((uint16,) * 129)
+        assert False
+    except TypeError:
+        pass
+
     # No union with just a None option
     try:
         bar = Union[None]
