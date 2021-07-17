@@ -1,6 +1,11 @@
 Changelog
 ==========
 
+v0.1.22
+--------
+
+- Improve performance of list/vector/subtree setters/getters: convert potentially slow typed input to `int` before repeated internal math.
+
 v0.1.21
 --------
 - Fix single-type-param Union

@@ -6,7 +6,7 @@ with open("README.rst", "rt", encoding="utf8") as f:
 setup(
     name="remerkleable",
     description="Typed mutable SSZ views over cached and immutable binary merkle trees",
-    version="0.1.21",
+    version="0.1.22",
     long_description=readme,
     long_description_content_type="text/x-rst",
     author="protolambda",
