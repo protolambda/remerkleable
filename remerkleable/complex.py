@@ -412,11 +412,13 @@ class List(MonoSubtreeView):
         self.set_backing(next_backing)
 
     def get(self, i: int) -> View:
+        i = int(i)
         if i < 0 or i >= self.length():
             raise IndexError
         return super().get(i)
 
     def set(self, i: int, v: View) -> None:
+        i = int(i)
         if i < 0 or i >= self.length():
             raise IndexError
         super().set(i, v)
@@ -580,11 +582,13 @@ class Vector(MonoSubtreeView):
         return out_typ
 
     def get(self, i: int) -> View:
+        i = int(i)
         if i < 0 or i >= self.__class__.vector_length():
             raise IndexError
         return super().get(i)
 
     def set(self, i: int, v: View) -> None:
+        i = int(i)
         if i < 0 or i >= self.__class__.vector_length():
             raise IndexError
         super().set(i, v)

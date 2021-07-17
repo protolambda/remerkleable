@@ -17,6 +17,7 @@ class SubtreeView(BackedView):
         raise NotImplementedError
 
     def get(self, i: int) -> View:
+        i = int(i)  # performance trick, input integers may be typed and slow
         elem_type: Type[View] = self.item_elem_cls(i)
         # basic types are more complicated: we operate on subsections packed into a bottom chunk
         if self.is_packed():
@@ -29,6 +30,7 @@ class SubtreeView(BackedView):
                 self.get_backing().getter(to_gindex(i, self.tree_depth())), lambda v: self.set(i, v))
 
     def set(self, i: int, v: View) -> None:
+        i = int(i)  # performance trick, input integers may be typed and slow
         elem_type: Type[View] = self.item_elem_cls(i)
         # if not the right type, try to coerce it
         if not isinstance(v, elem_type):
