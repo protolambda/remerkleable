@@ -1,6 +1,11 @@
 Changelog
 ==========
 
+v0.1.23
+--------
+
+- Improve memory usage, reduce tree memory overhead by denying unused class-dicts (dynamic attributes) in node classes, and similarly for view classes
+
 v0.1.22
 --------
 
