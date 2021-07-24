@@ -3,6 +3,8 @@ from remerkleable.tree import Node, Root, RebindableNode, NavigationError
 
 
 class VirtualSource(Protocol):
+    __slots__ = ()
+
     def get_left(self, key: Root) -> Node:
         ...
 
@@ -21,6 +23,7 @@ class VirtualNode(RebindableNode, Node):
     _is_leaf: Optional[bool] = None
     _left: Optional[Node] = None
     _right: Optional[Node] = None
+    __slots__ = '_root', '_src', '_is_leaf', '_left', '_right'
 
     def __init__(self, root: Root, src: VirtualSource):
         self._root = root

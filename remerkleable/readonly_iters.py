@@ -14,6 +14,7 @@ class BitfieldIter(object):
     length: int
     currentRoot: Root
     stack: PyList[Optional[Node]]
+    __slots__ = 'anchor', 'depth', 'i', 'j', 'rootIndex', 'length', 'currentRoot', 'stack'
 
     def __init__(self, anchor: Node, depth: int, length: int):
         self.anchor = anchor
@@ -108,6 +109,7 @@ class PackedIter(object):
     currentRoot: RootNode
     elem_type: Type[BasicView]
     stack: PyList[Optional[Node]]
+    __slots__ = 'anchor', 'depth', 'i', 'j', 'rootIndex', 'length', 'per_node', 'currentRoot', 'elem_type', 'stack'
 
     def __init__(self, anchor: Node, depth: int, length: int, elem_type: Type[BasicView]):
         self.anchor = anchor
@@ -199,8 +201,9 @@ class NodeIter(object):
     depth: int
     i: int
     length: int
-    per_node: int
+    currentRoot: RootNode
     stack: PyList[Optional[Node]]
+    __slots__ = 'anchor', 'depth', 'i', 'length', 'currentRoot', 'stack'
 
     def __init__(self, anchor: Node, depth: int, length: int):
         self.anchor = anchor
@@ -259,6 +262,7 @@ class ComplexElemIter(NodeIter):
     """Iterates a subtree by traversing it with a stack (thus readonly), reusing a view to return elements"""
 
     reused_view: View
+    __slots__ = ('reused_view',)
 
     def __init__(self, anchor: Node, depth: int, length: int, elem_type: Type[View]):
         super().__init__(anchor, depth, length)
@@ -274,6 +278,7 @@ class ComplexFreshElemIter(NodeIter):
     """Iterates a subtree by traversing it with a stack (thus readonly), not reusing a view to return elements"""
 
     elem_type: Type[View]
+    __slots__ = ('elem_type',)
 
     def __init__(self, anchor: Node, depth: int, length: int, elem_type: Type[View]):
         super().__init__(anchor, depth, length)
@@ -288,6 +293,7 @@ class ContainerElemIter(NodeIter):
     """Iterates a subtree by traversing it with a stack (thus readonly), not reusing a view to return elements"""
 
     elem_types: Sequence[Type[View]]
+    __slots__ = ('elem_types',)
 
     def __init__(self, anchor: Node, depth: int, elem_types: Sequence[Type[View]]):
         super().__init__(anchor, depth, len(elem_types))

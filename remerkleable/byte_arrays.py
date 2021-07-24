@@ -163,6 +163,7 @@ BL = TypeVar('BL', bound="ByteList")
 
 
 class ByteList(RawBytesView, FixedByteLengthViewHelper, View):
+    __slots__ = ()
 
     def __new__(cls, *args, **kwargs):
         byte_limit = cls.limit()

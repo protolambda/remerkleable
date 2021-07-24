@@ -23,6 +23,7 @@ def _new_chunk_with_bit(chunk: Node, i: int, v: boolean) -> Node:
 
 # alike to the SubtreeView, but specialized to work on individual bits of chunks, instead of complex/basic types.
 class BitsView(BackedView, ColSequence):
+    __slots__ = ()
 
     @classmethod
     def coerce_view(cls: Type[V], v: Any) -> V:
@@ -116,6 +117,8 @@ class BitsView(BackedView, ColSequence):
 
 
 class Bitlist(BitsView):
+    __slots__ = ()
+
     def __new__(cls, *args, **kwargs):
         vals = list(args)
         if len(vals) > 0:
@@ -339,6 +342,8 @@ class Bitlist(BitsView):
 
 
 class Bitvector(BitsView, FixedByteLengthViewHelper):
+    __slots__ = ()
+
     def __new__(cls, *args, **kwargs):
         vals = list(args)
         if len(vals) > 0:

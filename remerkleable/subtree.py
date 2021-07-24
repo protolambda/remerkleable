@@ -4,6 +4,8 @@ from remerkleable.tree import Link, to_gindex
 
 
 class SubtreeView(BackedView):
+    __slots__ = ()
+
     @classmethod
     def is_packed(cls) -> bool:
         raise NotImplementedError

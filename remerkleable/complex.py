@@ -24,6 +24,8 @@ def encode_offset(stream: BinaryIO, offset: int):
 
 
 class ComplexView(SubtreeView):
+    __slots__ = ()
+
     def encode_bytes(self) -> bytes:
         stream = io.BytesIO()
         self.serialize(stream)
@@ -42,6 +44,7 @@ M = TypeVar('M', bound="MonoSubtreeView")
 
 
 class MonoSubtreeView(ColSequence, ComplexView):
+    __slots__ = ()
 
     def length(self) -> int:
         raise NotImplementedError
@@ -253,6 +256,8 @@ class MonoSubtreeView(ColSequence, ComplexView):
 
 
 class List(MonoSubtreeView):
+    __slots__ = ()
+
     def __new__(cls, *args, backing: Optional[Node] = None, hook: Optional[ViewHook] = None, **kwargs):
         if backing is not None:
             if len(args) != 0:
@@ -493,6 +498,8 @@ class List(MonoSubtreeView):
 
 
 class Vector(MonoSubtreeView):
+    __slots__ = ()
+
     def __new__(cls, *args, backing: Optional[Node] = None, hook: Optional[ViewHook] = None, **kwargs):
         if backing is not None:
             if len(args) != 0:
@@ -675,6 +682,8 @@ class FieldOffset(NamedTuple):
 
 @runtime_checkable
 class _ContainerLike(Protocol):
+    __slots__ = ()
+
     @classmethod
     def fields(cls) -> Fields:
         ...
@@ -684,6 +693,8 @@ CV = TypeVar('CV', bound="Container")
 
 
 class _ContainerBase(ComplexView):
+    __slots__ = ()
+
     def __new__(cls, *args, backing: Optional[Node] = None, hook: Optional[ViewHook] = None,
                 append_nodes: Optional[PyList[Node]] = None, **kwargs):
         if backing is not None:
@@ -704,6 +715,7 @@ class _ContainerBase(ComplexView):
 
 class Container(_ContainerBase):
     _field_indices: Dict[str, int]
+    __slots__ = '_field_indices'
 
     def __new__(cls, *args, backing: Optional[Node] = None, hook: Optional[ViewHook] = None,
                 append_nodes: Optional[PyList[Node]] = None, **kwargs):

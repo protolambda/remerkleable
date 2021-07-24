@@ -12,6 +12,8 @@ V = TypeVar('V', bound=View)
 
 
 class Union(BackedView):
+    __slots__ = ()
+
     def __new__(cls, *args, selector: Optional[int] = None, value: PyUnion[View, None] = None,
                 backing: Optional[Node] = None, hook: Optional[ViewHook] = None, **kwargs):
         """

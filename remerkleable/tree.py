@@ -68,6 +68,9 @@ SummaryLink = Callable[[], "Node"]
 
 
 class Node(Protocol):
+    # This forces the node to only have static attributes. The Protocol superclass has the same.
+    # This way tree nodes can have 0 attribute dicts, saving ~30% memory in a 250.000 validator BeaconState SSZ test.
+    __slots__ = ()
 
     def get_left(self) -> "Node":
         raise NavigationError
@@ -141,6 +144,8 @@ V = TypeVar('V', bound=Node)
 
 
 class RebindableNode(Node):
+    __slots__ = ()
+
     def combine(self, left: Node, right: Node) -> Node:
         return PairNode(left, right)
 

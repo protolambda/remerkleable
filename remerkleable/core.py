@@ -15,6 +15,8 @@ V = TypeVar('V', bound="View")
 
 
 class ViewMeta(_ProtocolMeta):
+    __slots__ = ()
+
     def __truediv__(self, other) -> "Path":
         return Path.from_raw_path(anchor=cast(Type[View], self), path=[other])
 
@@ -29,6 +31,7 @@ class ObjParseException(Exception):
 class Path(object):
     anchor: Type["View"]
     path: PyList[Tuple[Any, Type["View"]]]  # (key, type) tuples.
+    __slots__ = 'anchor', 'path'
 
     def __init__(self, anchor: Type["View"], path: Optional[PyList[Tuple[Any, Type["View"]]]] = None):
         self.anchor = anchor
@@ -84,6 +87,7 @@ ViewHook = Callable[[HV], None]
 
 @runtime_checkable
 class View(Protocol, metaclass=ViewMeta):
+    # __slots__ = ()  # disabled, mypy bug
 
     @classmethod
     def coerce_view(cls: Type[V], v: Any) -> V:
@@ -187,6 +191,8 @@ class View(Protocol, metaclass=ViewMeta):
 
 
 class FixedByteLengthViewHelper(View, Protocol):
+    # __slots__ = ()  # disabled, mypy bug
+
     @classmethod
     def is_fixed_byte_length(cls) -> bool:
         return True
@@ -217,6 +223,8 @@ class BackedView(View):
     _hook: Optional[ViewHook]
     _backing: Node
 
+    __slots__ = '_hook', '_backing'
+
     @classmethod
     def view_from_backing(cls: Type[BackedV], node: Node, hook: Optional[ViewHook] = None) -> BackedV:
         return cls(backing=node, hook=hook)
@@ -244,6 +252,8 @@ BV = TypeVar('BV', bound="BasicView")
 
 @runtime_checkable
 class BasicView(FixedByteLengthViewHelper, Protocol):
+    # __slots__ = ()  # mypy bug, warns about non-method member that is not really an attribute itself:
+    # "Only protocols that don't have non-method members can be used with issubclass()"
 
     @classmethod
     def default_node(cls) -> Node:

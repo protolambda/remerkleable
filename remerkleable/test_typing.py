@@ -184,6 +184,7 @@ def test_list():
     typ = List[uint64, 128]
     assert issubclass(typ, List)
     assert issubclass(typ, View)
+    assert not issubclass(int, View)
 
     assert not typ.is_fixed_byte_length()
 

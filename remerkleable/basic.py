@@ -14,6 +14,7 @@ BoolV = TypeVar('BoolV', bound="boolean")
 
 
 class boolean(int, BasicView):
+    __slots__ = ()
 
     def encode_bytes(self) -> bytes:
         return b"\x01" if self else b"\x00"
@@ -72,6 +73,8 @@ W = TypeVar('W', bound=int)
 
 
 class uint(int, BasicView):
+    __slots__ = ()
+
     def __new__(cls, value: int):
         if value < 0:
             raise ValueError(f"unsigned type {cls} must not be negative")
@@ -213,24 +216,32 @@ class uint(int, BasicView):
 
 
 class uint8(uint):
+    __slots__ = ()
+
     @classmethod
     def type_byte_length(cls) -> int:
         return 1
 
 
 class uint16(uint):
+    __slots__ = ()
+
     @classmethod
     def type_byte_length(cls) -> int:
         return 2
 
 
 class uint32(uint):
+    __slots__ = ()
+
     @classmethod
     def type_byte_length(cls) -> int:
         return 4
 
 
 class uint64(uint):
+    __slots__ = ()
+
     @classmethod
     def type_byte_length(cls) -> int:
         return 8
@@ -240,6 +251,8 @@ class uint64(uint):
 
 
 class uint128(uint):
+    __slots__ = ()
+
     @classmethod
     def type_byte_length(cls) -> int:
         return 16
@@ -249,6 +262,8 @@ class uint128(uint):
 
 
 class uint256(uint):
+    __slots__ = ()
+
     @classmethod
     def type_byte_length(cls) -> int:
         return 32
@@ -258,8 +273,10 @@ class uint256(uint):
 
 
 class bit(boolean):
+    __slots__ = ()
     pass
 
 
 class byte(uint8):
+    __slots__ = ()
     pass
