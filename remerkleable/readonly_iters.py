@@ -1,6 +1,7 @@
 from typing import List as PyList, Optional, Type, Sequence
 from remerkleable.core import BasicView, View
-from remerkleable.tree import Node, Root, RootNode, ZERO_ROOT
+from remerkleable.tree import Node, Root, RootNode
+from remerkleable.settings import ZERO_ROOT
 
 
 class BitfieldIter(object):

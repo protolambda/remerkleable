@@ -5,6 +5,7 @@ from typing import Callable, Optional, Any, cast, List as PyList, BinaryIO,\
 from typing import _ProtocolMeta  # type: ignore
 
 from remerkleable.tree import Node, Root, RootNode, zero_node, concat_gindices, Gindex
+from remerkleable.settings import ENDIANNESS
 from itertools import zip_longest
 from typing import Iterable, Tuple
 
@@ -300,7 +301,7 @@ def grouper(items: Iterable, n: int, fillvalue=None) -> Iterable[Tuple]:
 
 def pack_ints_to_chunks(items: Iterable[int], items_per_chunk: int) -> PyList[Node]:
     item_byte_len = 32 // items_per_chunk
-    return [RootNode(Root(b"".join(v.to_bytes(length=item_byte_len, byteorder='little') for v in chunk_elems)))
+    return [RootNode(Root(b"".join(v.to_bytes(length=item_byte_len, byteorder=ENDIANNESS) for v in chunk_elems)))
             for chunk_elems in grouper(items, items_per_chunk, fillvalue=0)]
 
 

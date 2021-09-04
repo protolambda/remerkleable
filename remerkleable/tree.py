@@ -1,5 +1,5 @@
 from typing import Callable, NewType, List, Optional, Protocol, TypeVar, Iterable, Iterator, Tuple
-from hashlib import sha256
+from remerkleable.settings import Root, merkle_hash, zero_hashes
 
 
 # Get the depth required for a given element count
@@ -50,17 +50,6 @@ def concat_gindices(steps: Iterable[Gindex]) -> Gindex:
         out <<= step_bit_len
         out |= step ^ (1 << step_bit_len)
     return Gindex(out)
-
-
-Root = NewType("Root", bytes)
-
-MerkleFn = Callable[[Root, Root], Root]
-
-ZERO_ROOT: Root = Root(b'\x00' * 32)
-
-
-def merkle_hash(left: Root, right: Root) -> Root:
-    return Root(sha256(left + right).digest())
 
 
 Link = Callable[["Node"], "Node"]
@@ -115,13 +104,6 @@ class Node(Protocol):
 
     def merkle_root(self) -> Root:
         raise
-
-
-# hashes of hashes of zeroes etc.
-zero_hashes: List[Root] = [ZERO_ROOT]
-
-for i in range(100):
-    zero_hashes.append(merkle_hash(zero_hashes[i], zero_hashes[i]))
 
 
 def zero_node(depth: int) -> "RootNode":

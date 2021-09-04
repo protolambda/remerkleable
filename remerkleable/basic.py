@@ -1,5 +1,6 @@
 from typing import Any, TypeVar, Type
 from remerkleable.core import BasicView, View, ObjType, ObjParseException
+from remerkleable.settings import ENDIANNESS
 
 V = TypeVar('V', bound=View)
 
@@ -192,10 +193,10 @@ class uint(int, BasicView):
 
     @classmethod
     def decode_bytes(cls: Type[T], bytez: bytes) -> T:
-        return cls(int.from_bytes(bytez, byteorder='little'))
+        return cls(int.from_bytes(bytez, byteorder=ENDIANNESS))
 
     def encode_bytes(self) -> bytes:
-        return self.to_bytes(length=self.__class__.type_byte_length(), byteorder='little')
+        return self.to_bytes(length=self.__class__.type_byte_length(), byteorder=ENDIANNESS)
 
     @classmethod
     def from_obj(cls: Type[T], obj: ObjType) -> T:
