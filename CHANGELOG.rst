@@ -1,6 +1,13 @@
 Changelog
 ==========
 
+v0.1.24
+--------
+
+- Move hash-function to remerkleable.settings module to enable overrides
+- Function to initialize zero-hashes
+- Make endianness of uint types configurable in remerkleable.settings
+
 v0.1.23
 --------
 
