@@ -60,7 +60,7 @@ Project Links
 Also see
 ---------
 
-- `SSZ: "SimpleSerialize", part of Ethereum 2.0 <https://github.com/ethereum/eth2.0-specs/blob/dev/specs/simple-serialize.md>`_
+- `SSZ: "SimpleSerialize", part of Ethereum Proof of Stake spec <https://github.com/ethereum/consensus-specs/blob/dev/ssz/simple-serialize.md>`_
 - `SSZ draft spec <https://github.com/protolambda/eth2.0-ssz/>`_
 - `Ethereum Merkle trees information aggregate <https://github.com/protolambda/eth-merkle-trees>`_
 
