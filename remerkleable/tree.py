@@ -231,7 +231,7 @@ def subtree_fill_to_length(bottom: Node, depth: int, length: int) -> Node:
         anchor = 1 << depth
         pivot = anchor >> 1
         if length <= pivot:
-            return PairNode(subtree_fill_to_length(bottom, depth - 1, length), zero_node(depth-1))
+            return PairNode(subtree_fill_to_length(bottom, depth - 1, length), zero_node(depth - 1))
         else:
             return PairNode(
                 subtree_fill_to_depth(bottom, depth-1),
