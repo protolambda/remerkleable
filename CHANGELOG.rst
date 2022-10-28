@@ -1,6 +1,11 @@
 Changelog
 ==========
 
+v0.1.25
+--------
+
+- Fix bug in subtree-filling in default-constructor of non-power-of-2 length vector types, by @etan-status
+
 v0.1.24
 --------
 
