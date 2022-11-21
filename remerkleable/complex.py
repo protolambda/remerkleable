@@ -761,7 +761,7 @@ class Container(_ContainerBase):
     def fields(cls) -> Fields:
         fields = {}
         for b in cls.__bases__:
-            for k, v in b.fields().items():
+            for k, v in b.fields().items():  # type: ignore
                 fields[k] = v
         for k, v in cls.__annotations__.items():
             if k[0] != '_':

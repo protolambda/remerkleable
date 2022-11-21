@@ -262,6 +262,7 @@ def test_bytesn_subclass():
 
     assert len(Bytes32() + Bytes48()) == 80
 
+
 def test_byte_vector():
     test_types = [0, 1, 2, 3, 4, 8, 15, 16, 32, 77, 128, 500]
     for typ_n in test_types:

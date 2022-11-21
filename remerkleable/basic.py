@@ -124,7 +124,7 @@ class uint(int, BasicView):
         raise OperationNotSupported(f"non-integer division '{other} / {self}' "
                                     f"is not valid for {self.__class__.type_repr()} right hand type")
 
-    def __pow__(self: T, other: int, modulo=None) -> T:
+    def __pow__(self: T, other: int, modulo=None) -> T:  # type: ignore
         return self.__class__(super().__pow__(other, modulo))  # TODO: stricter argument checks?
 
     def __rpow__(self: T, other, modulo=None) -> T:
