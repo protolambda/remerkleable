@@ -77,6 +77,8 @@ BV = TypeVar('BV', bound="ByteVector")
 class ByteVector(RawBytesView, FixedByteLengthViewHelper, View):
     def __new__(cls, *args, **kwargs):
         byte_len = cls.vector_length()
+        if len(args) == 1 and isinstance(args[0], int):
+            raise Exception(f"cannot init fixed-length ByteVector[{byte_len}] with dynamic-length {args[0]}")
         out = super().__new__(cls, *args, **kwargs)
         if len(out) != byte_len:
             raise Exception(f"incorrect byte length: {len(out)}, expected {byte_len}")
