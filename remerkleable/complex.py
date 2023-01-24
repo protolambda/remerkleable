@@ -962,3 +962,8 @@ class Container(_ContainerBase):
 
     def navigate_view(self, key: Any) -> View:
         return self.__getattr__(key)
+
+    def __eq__(self, other):
+        if not isinstance(other, Container):
+            return False
+        return len(self.fields()) == len(other.fields()) and self.hash_tree_root() == other.hash_tree_root()
