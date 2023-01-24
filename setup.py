@@ -19,7 +19,7 @@ setup(
     tests_require=[],
     extras_require={
         "testing": ["pytest"],
-        "linting": ["flake8", "mypy"],
+        "linting": ["flake8"],
         "docs": ["sphinx", "sphinx-autodoc-typehints", "pallets_sphinx_themes", "sphinx_issues"]
     },
     install_requires=[],
