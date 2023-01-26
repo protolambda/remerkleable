@@ -456,3 +456,22 @@ def test_readonly_iters(name: str, typ: Type[View], value: View, serialized: str
         fields = list(value)
         expected = [getattr(value, fkey) for fkey in value.__class__.fields().keys()]
         assert fields == expected
+
+
+def test_container_equality():
+    class A(Container):
+        x: uint8
+        y: uint8
+        z: uint8
+
+    class B(Container):
+        x: uint8
+        y: uint8
+        z: uint8
+        v: uint8
+
+    assert A(1, 2, 3) == A(1, 2, 3)
+    assert B(1, 2, 3, 0) == B(1, 2, 3, 0)
+    assert A(1, 2, 3) != B(1, 2, 3, 0)
+    assert A(1, 2, 3) in {A(1, 2, 3)}
+    assert A(1, 2, 3) not in {B(1, 2, 3, 0)}

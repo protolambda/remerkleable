@@ -967,3 +967,6 @@ class Container(_ContainerBase):
         if not isinstance(other, Container):
             return False
         return len(self.fields()) == len(other.fields()) and self.hash_tree_root() == other.hash_tree_root()
+
+    def __hash__(self):
+        return hash((self.hash_tree_root(), len(self.fields())))
