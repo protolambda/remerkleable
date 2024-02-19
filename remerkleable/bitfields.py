@@ -326,6 +326,8 @@ class Bitlist(BitsView):
 
     @classmethod
     def navigate_type(cls, key: Any) -> Type[View]:
+        if key == '__len__':
+            return uint256
         bit_limit = cls.limit()
         if key < 0 or key >= bit_limit:
             raise KeyError

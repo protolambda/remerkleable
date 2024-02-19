@@ -461,6 +461,8 @@ class List(MonoSubtreeView):
 
     @classmethod
     def navigate_type(cls, key: Any) -> Type[View]:
+        if key == '__len__':
+            return uint256
         if key >= cls.limit():
             raise KeyError
         return super().navigate_type(key)
