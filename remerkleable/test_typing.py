@@ -347,8 +347,17 @@ def test_paths():
     assert (Wrapper / 'b' / 'quix').navigate_view(w) == 42
 
     assert (List[uint32, 123] / 0).navigate_type() == uint32
+    assert (List[uint32, 123] / "__len__").navigate_type() == uint256
     try:
         (List[uint32, 123] / 123).navigate_type()
+        assert False
+    except KeyError:
+        pass
+
+    assert (Bitlist[123] / 0).navigate_type() == boolean
+    assert (Bitlist[123] / "__len__").navigate_type() == uint256
+    try:
+        (Bitlist[123] / 123).navigate_type()
         assert False
     except KeyError:
         pass
