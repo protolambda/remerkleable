@@ -263,6 +263,26 @@ def test_bytesn_subclass():
     assert len(Bytes32() + Bytes48()) == 80
 
 
+def test_byte_vector():
+    test_types = [0, 1, 2, 3, 4, 8, 15, 16, 32, 77, 128, 500]
+    for typ_n in test_types:
+        typ = ByteVector[typ_n]
+        try:
+            # bytes(N) in python creates b'0x00' * N: a N-byte bytes zeroed value.
+            # This is error-prone when working with fixed-length bytes: it does not convert the integer to a value.
+            # So we raise an exception when someone tries to convert an integer.
+            typ(typ_n)
+            assert False
+        except Exception:
+            pass
+
+        # check that other constructors work as expected
+        input = typ_n.to_bytes(length=typ_n, byteorder='little')
+        assert input == bytes(typ(input.hex()))  # hex
+        assert input == bytes(typ(input))  # bytes
+        assert input == bytes(typ(list(input)))  # lists
+
+
 def test_uint_math():
     assert uint8(0) + uint8(uint32(16)) == uint8(16)  # allow explicit casting to make invalid addition valid
 

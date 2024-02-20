@@ -116,6 +116,9 @@ class BitsView(BackedView, ColSequence):
         return boolean(self.__getitem__(key))
 
 
+VL = TypeVar('VL', bound="Bitlist")
+
+
 class Bitlist(BitsView):
     __slots__ = ()
 
@@ -270,7 +273,7 @@ class Bitlist(BitsView):
         return cls.deserialize(stream, len(bytez))
 
     @classmethod
-    def deserialize(cls: Type[V], stream: BinaryIO, scope: int) -> V:
+    def deserialize(cls: Type[VL], stream: BinaryIO, scope: int) -> VL:
         if scope < 1:
             raise Exception("cannot have empty scope for bitlist, need at least a delimiting bit")
         if scope > cls.max_byte_length():
@@ -341,6 +344,9 @@ class Bitlist(BitsView):
             raise KeyError
         chunk_i = key // 256
         return to_gindex(chunk_i, depth)
+
+
+VV = TypeVar('VV', bound="Bitvector")
 
 
 class Bitvector(BitsView, FixedByteLengthViewHelper):
@@ -415,7 +421,7 @@ class Bitvector(BitsView, FixedByteLengthViewHelper):
         return f"Bitvector[{length}]({bitstr})"
 
     @classmethod
-    def deserialize(cls: Type[V], stream: BinaryIO, scope: int) -> V:
+    def deserialize(cls: Type[VV], stream: BinaryIO, scope: int) -> VV:
         if scope != cls.type_byte_length():
             raise Exception(f"scope is invalid: {scope}, bitvector byte length is: {cls.type_byte_length()}")
         chunks: PyList[Node] = []
@@ -452,14 +458,14 @@ class Bitvector(BitsView, FixedByteLengthViewHelper):
         return byte_len
 
     @classmethod
-    def navigate_type(cls, key: Any) -> Type[View]:
+    def navigate_type(cls: Type[VV], key: Any) -> Type[View]:
         bit_limit = cls.vector_length()
         if key < 0 or key >= bit_limit:
             raise KeyError
         return boolean
 
     @classmethod
-    def key_to_static_gindex(cls, key: Any) -> Gindex:
+    def key_to_static_gindex(cls: Type[VV], key: Any) -> Gindex:
         depth = cls.tree_depth()
         bit_len = cls.vector_length()
         if key < 0 or key >= bit_len:

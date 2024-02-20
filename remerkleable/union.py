@@ -8,7 +8,7 @@ from remerkleable.tree import LEFT_GINDEX, RIGHT_GINDEX
 
 Options = Sequence[PyUnion[Type[View], None]]
 
-V = TypeVar('V', bound=View)
+V = TypeVar('V', bound="Union")
 
 
 class Union(BackedView):
