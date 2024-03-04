@@ -2,7 +2,7 @@
 # The EIP is still under review, functionality may change or go away without deprecation.
 
 import io
-from typing import BinaryIO, Dict, List as PyList, Optional, TypeVar, Type, Union as PyUnion, \
+from typing import BinaryIO, Dict, List as PyList, Optional, Tuple, TypeVar, Type, Union as PyUnion, \
     get_args, get_origin
 from textwrap import indent
 from remerkleable.bitfields import Bitvector
@@ -17,7 +17,7 @@ S = TypeVar('S', bound="ComplexView")
 
 
 class StableContainer(ComplexView):
-    _field_indices: Dict[str, tuple[int, Type[View], bool]]
+    _field_indices: Dict[str, Tuple[int, Type[View], bool]]
     __slots__ = '_field_indices'
 
     def __new__(cls, backing: Optional[Node] = None, hook: Optional[ViewHook] = None, **kwargs):
@@ -75,7 +75,7 @@ class StableContainer(ComplexView):
         return StableContainerView
 
     @classmethod
-    def fields(cls) -> Dict[str, tuple[Type[View], bool]]:
+    def fields(cls) -> Dict[str, Tuple[Type[View], bool]]:
         fields = {}
         for k, v in cls.__annotations__.items():
             fopt = get_origin(v) == PyUnion and type(None) in get_args(v)
@@ -281,7 +281,7 @@ class Variant(ComplexView):
             S = s
 
             @classmethod
-            def fields(cls) -> Dict[str, tuple[Type[View], bool]]:
+            def fields(cls) -> Dict[str, Tuple[Type[View], bool]]:
                 return s.fields()
 
         VariantView.__name__ = VariantView.type_repr()
