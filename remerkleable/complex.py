@@ -23,6 +23,80 @@ def encode_offset(stream: BinaryIO, offset: int):
     return uint32(offset).serialize(stream)
 
 
+def create_readonly_iter(backing: Node, tree_depth: int, length: int, elem_type: Type[View], is_packed: bool):
+    if is_packed:
+        return PackedIter(backing, tree_depth, length, cast(Type[BasicView], elem_type))
+    else:
+        if issubclass(elem_type, bytes):  # is the element type the raw-bytes? Then not re-use views.
+            return ComplexFreshElemIter(backing, tree_depth, length, cast(Type[View], elem_type))
+        else:
+            return ComplexElemIter(backing, tree_depth, length, elem_type)
+
+
+def append_view(backing: Node, tree_depth: int, i: int, v: View, elem_type: Type[View], is_packed: bool) -> Node:
+    target: Gindex
+    if is_packed:
+        next_backing = backing
+        if isinstance(v, BasicView):
+            elems_per_chunk = 32 // elem_type.type_byte_length()
+            chunk_i = i // elems_per_chunk
+            target = to_gindex(chunk_i, tree_depth)
+            chunk: Node
+            if i % elems_per_chunk == 0:
+                set_last = next_backing.setter(target, expand=True)
+                chunk = zero_node(0)
+            else:
+                set_last = next_backing.setter(target)
+                chunk = next_backing.getter(target)
+            chunk = v.backing_from_base(chunk, i % elems_per_chunk)
+            next_backing = set_last(chunk)
+        else:
+            raise Exception("cannot append a packed element that is not a basic type")
+    else:
+        target = to_gindex(i, tree_depth)
+        set_last = backing.setter(target, expand=True)
+        next_backing = set_last(v.get_backing())
+
+    return next_backing
+
+
+def pop_and_summarize(backing: Node, tree_depth: int, i: int, elem_type: Type[View], is_packed: bool) -> Node:
+    target: Gindex
+    can_summarize: bool
+    if is_packed:
+        next_backing = backing
+        if issubclass(elem_type, BasicView):
+            elems_per_chunk = 32 // elem_type.type_byte_length()
+            chunk_i = i // elems_per_chunk
+            target = to_gindex(chunk_i, tree_depth)
+            if i % elems_per_chunk == 0:
+                chunk = zero_node(0)
+            else:
+                chunk = next_backing.getter(target)
+            set_last = next_backing.setter(target)
+            chunk = elem_type.default(None).backing_from_base(chunk, i % elems_per_chunk)
+            next_backing = set_last(chunk)
+
+            can_summarize = (target & 1) == 0 and i % elems_per_chunk == 0
+        else:
+            raise Exception("cannot pop a packed element that is not a basic type")
+    else:
+        target = to_gindex(i, tree_depth)
+        set_last = backing.setter(target)
+        next_backing = set_last(zero_node(0))
+        can_summarize = (target & 1) == 0
+
+    # if possible, summarize
+    if can_summarize:
+        # summarize to the highest node possible.
+        # I.e. the resulting target must be a right-hand, unless it's the only content node.
+        while (target & 1) == 0 and target != 0b10:
+            target >>= 1
+        summary_fn = next_backing.summarize_into(target)
+        next_backing = summary_fn()
+
+    return next_backing
+
 class ComplexView(SubtreeView):
     __slots__ = ()
 
@@ -98,14 +172,9 @@ class MonoSubtreeView(ColSequence, ComplexView):
         backing = self.get_backing()
 
         elem_type: Type[View] = self.element_cls()
+        is_packed = self.is_packed()
 
-        if self.is_packed():
-            return PackedIter(backing, tree_depth, length, cast(Type[BasicView], elem_type))
-        else:
-            if issubclass(elem_type, bytes):  # is the element type the raw-bytes? Then not re-use views.
-                return ComplexFreshElemIter(backing, tree_depth, length, cast(Type[View], elem_type))
-            else:
-                return ComplexElemIter(backing, tree_depth, length, elem_type)
+        return create_readonly_iter(backing, tree_depth, length, elem_type, is_packed)
 
     @classmethod
     def deserialize(cls: Type[M], stream: BinaryIO, scope: int) -> M:
@@ -340,31 +409,13 @@ class List(MonoSubtreeView):
         if ll >= self.__class__.limit():
             raise Exception("list is maximum capacity, cannot append")
         i = ll
+
+        tree_depth = self.__class__.tree_depth()
         elem_type: Type[View] = self.__class__.element_cls()
+        is_packed = self.__class__.is_packed()
         if not isinstance(v, elem_type):
             v = elem_type.coerce_view(v)
-        target: Gindex
-        if self.__class__.is_packed():
-            next_backing = self.get_backing()
-            if isinstance(v, BasicView):
-                elems_per_chunk = 32 // elem_type.type_byte_length()
-                chunk_i = i // elems_per_chunk
-                target = to_gindex(chunk_i, self.__class__.tree_depth())
-                chunk: Node
-                if i % elems_per_chunk == 0:
-                    set_last = next_backing.setter(target, expand=True)
-                    chunk = zero_node(0)
-                else:
-                    set_last = next_backing.setter(target)
-                    chunk = next_backing.getter(target)
-                chunk = v.backing_from_base(chunk, i % elems_per_chunk)
-                next_backing = set_last(chunk)
-            else:
-                raise Exception("cannot append a packed element that is not a basic type")
-        else:
-            target = to_gindex(i, self.__class__.tree_depth())
-            set_last = self.get_backing().setter(target, expand=True)
-            next_backing = set_last(v.get_backing())
+        next_backing = append_view(self.get_backing(), tree_depth, i, v, elem_type, is_packed)
 
         set_length = next_backing.rebind_right
         new_length = uint256(ll + 1).get_backing()
@@ -374,42 +425,13 @@ class List(MonoSubtreeView):
     def pop(self):
         ll = self.length()
         if ll == 0:
-            raise Exception("list is empty, cannot pop")
+            raise Exception('list is empty, cannot pop')
         i = ll - 1
-        target: Gindex
-        can_summarize: bool
-        if self.__class__.is_packed():
-            next_backing = self.get_backing()
-            elem_type: Type[View] = self.__class__.element_cls()
-            if issubclass(elem_type, BasicView):
-                elems_per_chunk = 32 // elem_type.type_byte_length()
-                chunk_i = i // elems_per_chunk
-                target = to_gindex(chunk_i, self.__class__.tree_depth())
-                if i % elems_per_chunk == 0:
-                    chunk = zero_node(0)
-                else:
-                    chunk = next_backing.getter(target)
-                set_last = next_backing.setter(target)
-                chunk = elem_type.default(None).backing_from_base(chunk, i % elems_per_chunk)
-                next_backing = set_last(chunk)
 
-                can_summarize = (target & 1) == 0 and i % elems_per_chunk == 0
-            else:
-                raise Exception("cannot pop a packed element that is not a basic type")
-        else:
-            target = to_gindex(i, self.__class__.tree_depth())
-            set_last = self.get_backing().setter(target)
-            next_backing = set_last(zero_node(0))
-            can_summarize = (target & 1) == 0
-
-        # if possible, summarize
-        if can_summarize:
-            # summarize to the highest node possible.
-            # I.e. the resulting target must be a right-hand, unless it's the only content node.
-            while (target & 1) == 0 and target != 0b10:
-                target >>= 1
-            summary_fn = next_backing.summarize_into(target)
-            next_backing = summary_fn()
+        tree_depth = self.__class__.tree_depth()
+        elem_type = self.__class__.element_cls()
+        is_packed = self.__class__.is_packed()
+        next_backing = pop_and_summarize(self.get_backing(), tree_depth, i, elem_type, is_packed)
 
         set_length = next_backing.rebind_right
         new_length = uint256(ll - 1).get_backing()

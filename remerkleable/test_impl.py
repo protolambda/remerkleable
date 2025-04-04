@@ -9,6 +9,7 @@ from remerkleable.basic import boolean, bit, byte, uint8, uint16, uint32, uint64
 from remerkleable.bitfields import Bitvector, Bitlist
 from remerkleable.byte_arrays import ByteVector, ByteList
 from remerkleable.core import View, ObjType
+from remerkleable.progressive import ProgressiveList
 from remerkleable.stable_container import Profile, StableContainer
 from remerkleable.union import Union
 from hashlib import sha256
@@ -47,7 +48,7 @@ class ComplexTestStruct(Container):
     A: uint16
     B: List[uint16, 128]
     C: uint8
-    D: List[byte, 256]
+    D: ProgressiveList[byte]
     E: VarTestStruct
     F: Vector[FixedTestStruct, 4]
     G: Vector[VarTestStruct, 2]
@@ -284,7 +285,7 @@ test_data = [
          A=0xaabb,
          B=List[uint16, 128](0x1122, 0x3344),
          C=0xff,
-         D=List[byte, 256](b"foobar"),
+         D=ProgressiveList[byte](b"foobar"),
          E=VarTestStruct(A=0xabcd, B=List[uint16, 1024](1, 2, 3), C=0xff),
          F=Vector[FixedTestStruct, 4](
              FixedTestStruct(A=0xcc, B=0x4242424242424242, C=0x13371337),
@@ -319,7 +320,7 @@ test_data = [
              ),
              h(  # C and D
                  chunk("ff"),
-                 h(merge(chunk("666f6f626172"), zero_hashes[0:3]), chunk("06000000"))  # 256/32 = 8 chunks
+                 h(h(chunk("666f6f626172"), zero_hashes[0]), chunk("06000000"))  # 256/32 = 8 chunks
              )
          ),
          h(
@@ -363,7 +364,211 @@ test_data = [
             {'A': 0xdead, 'B': [1, 2, 3], 'C': 0x11},
             {'A': 0xbeef, 'B': [4, 5, 6], 'C': 0x22},
         ),
-     })
+     }),
+    ("progressiveList 0", ProgressiveList[uint16],
+     ProgressiveList[uint16](),
+     "",
+     h(
+         zero_hashes[0],  # terminator
+         chunk("00")  # length mix in
+     ), []),
+    ("progressiveList 1", ProgressiveList[uint16],
+     ProgressiveList[uint16](0x0100, 0x0101),
+     "00010101",
+     h(
+         h(
+             chunk("00010101"),
+             zero_hashes[0]  # terminator
+         ),
+         chunk("02")  # length mix in
+     ), [0x0100, 0x0101]),
+    ("progressiveList 2", ProgressiveList[uint16],
+     ProgressiveList[uint16](
+         0x0100, 0x0101, 0x0102, 0x0103, 0x0104, 0x0105, 0x0106, 0x0107,
+         0x0108, 0x0109, 0x010a, 0x010b, 0x010c, 0x010d, 0x010e, 0x010f,
+         0x0200
+     ),
+     "00010101020103010401050106010701080109010a010b010c010d010e010f01"
+     "0002",
+     h(
+         h(
+             chunk("00010101020103010401050106010701080109010a010b010c010d010e010f01"),
+             h(
+                 merge(chunk("0002"), zero_hashes[0:2]),
+                 zero_hashes[0]  # terminator
+             )
+         ),
+         chunk("11")  # length mix in
+     ), [
+         0x0100, 0x0101, 0x0102, 0x0103, 0x0104, 0x0105, 0x0106, 0x0107,
+         0x0108, 0x0109, 0x010a, 0x010b, 0x010c, 0x010d, 0x010e, 0x010f,
+         0x0200
+     ]),
+    ("progressiveList 3", ProgressiveList[uint16],
+     ProgressiveList[uint16](
+         0x0100, 0x0101, 0x0102, 0x0103, 0x0104, 0x0105, 0x0106, 0x0107,
+         0x0108, 0x0109, 0x010a, 0x010b, 0x010c, 0x010d, 0x010e, 0x010f,
+         0x0200, 0x0201, 0x0202, 0x0203, 0x0204, 0x0205, 0x0206, 0x0207,
+         0x0208, 0x0209, 0x020a, 0x020b, 0x020c, 0x020d, 0x020e, 0x020f,
+         0x0210, 0x0211, 0x0212, 0x0213, 0x0214, 0x0215, 0x0216, 0x0217,
+         0x0218, 0x0219, 0x021a, 0x021b, 0x021c, 0x021d, 0x021e, 0x021f,
+         0x0220, 0x0221, 0x0222, 0x0223, 0x0224, 0x0225, 0x0226, 0x0227,
+         0x0228, 0x0229, 0x022a, 0x022b, 0x022c, 0x022d, 0x022e, 0x022f,
+         0x0230, 0x0231, 0x0232, 0x0233, 0x0234, 0x0235, 0x0236, 0x0237,
+         0x0238, 0x0239, 0x023a, 0x023b, 0x023c, 0x023d, 0x023e, 0x023f
+     ),
+     "00010101020103010401050106010701080109010a010b010c010d010e010f01"
+     "00020102020203020402050206020702080209020a020b020c020d020e020f02"
+     "10021102120213021402150216021702180219021a021b021c021d021e021f02"
+     "20022102220223022402250226022702280229022a022b022c022d022e022f02"
+     "30023102320233023402350236023702380239023a023b023c023d023e023f02",
+     h(
+         h(
+             chunk("00010101020103010401050106010701080109010a010b010c010d010e010f01"),
+             h(
+                 h(
+                     h(
+                         chunk("00020102020203020402050206020702080209020a020b020c020d020e020f02"),
+                         chunk("10021102120213021402150216021702180219021a021b021c021d021e021f02")
+                     ),
+                     h(
+                         chunk("20022102220223022402250226022702280229022a022b022c022d022e022f02"),
+                         chunk("30023102320233023402350236023702380239023a023b023c023d023e023f02")
+                     )
+                 ),
+                 zero_hashes[0]  # terminator
+             )
+         ),
+         chunk("50")  # length mix in
+     ), [
+         0x0100, 0x0101, 0x0102, 0x0103, 0x0104, 0x0105, 0x0106, 0x0107,
+         0x0108, 0x0109, 0x010a, 0x010b, 0x010c, 0x010d, 0x010e, 0x010f,
+         0x0200, 0x0201, 0x0202, 0x0203, 0x0204, 0x0205, 0x0206, 0x0207,
+         0x0208, 0x0209, 0x020a, 0x020b, 0x020c, 0x020d, 0x020e, 0x020f,
+         0x0210, 0x0211, 0x0212, 0x0213, 0x0214, 0x0215, 0x0216, 0x0217,
+         0x0218, 0x0219, 0x021a, 0x021b, 0x021c, 0x021d, 0x021e, 0x021f,
+         0x0220, 0x0221, 0x0222, 0x0223, 0x0224, 0x0225, 0x0226, 0x0227,
+         0x0228, 0x0229, 0x022a, 0x022b, 0x022c, 0x022d, 0x022e, 0x022f,
+         0x0230, 0x0231, 0x0232, 0x0233, 0x0234, 0x0235, 0x0236, 0x0237,
+         0x0238, 0x0239, 0x023a, 0x023b, 0x023c, 0x023d, 0x023e, 0x023f
+     ]),
+    ("progressiveList 4", ProgressiveList[uint16],
+     ProgressiveList[uint16](
+         0x0100, 0x0101, 0x0102, 0x0103, 0x0104, 0x0105, 0x0106, 0x0107,
+         0x0108, 0x0109, 0x010a, 0x010b, 0x010c, 0x010d, 0x010e, 0x010f,
+         0x0200, 0x0201, 0x0202, 0x0203, 0x0204, 0x0205, 0x0206, 0x0207,
+         0x0208, 0x0209, 0x020a, 0x020b, 0x020c, 0x020d, 0x020e, 0x020f,
+         0x0210, 0x0211, 0x0212, 0x0213, 0x0214, 0x0215, 0x0216, 0x0217,
+         0x0218, 0x0219, 0x021a, 0x021b, 0x021c, 0x021d, 0x021e, 0x021f,
+         0x0220, 0x0221, 0x0222, 0x0223, 0x0224, 0x0225, 0x0226, 0x0227,
+         0x0228, 0x0229, 0x022a, 0x022b, 0x022c, 0x022d, 0x022e, 0x022f,
+         0x0230, 0x0231, 0x0232, 0x0233, 0x0234, 0x0235, 0x0236, 0x0237,
+         0x0238, 0x0239, 0x023a, 0x023b, 0x023c, 0x023d, 0x023e, 0x023f,
+         0x0300
+     ),
+     "00010101020103010401050106010701080109010a010b010c010d010e010f01"
+     "00020102020203020402050206020702080209020a020b020c020d020e020f02"
+     "10021102120213021402150216021702180219021a021b021c021d021e021f02"
+     "20022102220223022402250226022702280229022a022b022c022d022e022f02"
+     "30023102320233023402350236023702380239023a023b023c023d023e023f02"
+     "0003",
+     h(
+         h(
+             chunk("00010101020103010401050106010701080109010a010b010c010d010e010f01"),
+             h(
+                 h(
+                     h(
+                         chunk("00020102020203020402050206020702080209020a020b020c020d020e020f02"),
+                         chunk("10021102120213021402150216021702180219021a021b021c021d021e021f02")
+                     ),
+                     h(
+                         chunk("20022102220223022402250226022702280229022a022b022c022d022e022f02"),
+                         chunk("30023102320233023402350236023702380239023a023b023c023d023e023f02")
+                     )
+                 ),
+                 h(
+                     merge(chunk("0003"), zero_hashes[0:4]),
+                     zero_hashes[0]  # terminator
+                 )
+             )
+         ),
+         chunk("51")  # length mix in
+     ), [
+         0x0100, 0x0101, 0x0102, 0x0103, 0x0104, 0x0105, 0x0106, 0x0107,
+         0x0108, 0x0109, 0x010a, 0x010b, 0x010c, 0x010d, 0x010e, 0x010f,
+         0x0200, 0x0201, 0x0202, 0x0203, 0x0204, 0x0205, 0x0206, 0x0207,
+         0x0208, 0x0209, 0x020a, 0x020b, 0x020c, 0x020d, 0x020e, 0x020f,
+         0x0210, 0x0211, 0x0212, 0x0213, 0x0214, 0x0215, 0x0216, 0x0217,
+         0x0218, 0x0219, 0x021a, 0x021b, 0x021c, 0x021d, 0x021e, 0x021f,
+         0x0220, 0x0221, 0x0222, 0x0223, 0x0224, 0x0225, 0x0226, 0x0227,
+         0x0228, 0x0229, 0x022a, 0x022b, 0x022c, 0x022d, 0x022e, 0x022f,
+         0x0230, 0x0231, 0x0232, 0x0233, 0x0234, 0x0235, 0x0236, 0x0237,
+         0x0238, 0x0239, 0x023a, 0x023b, 0x023c, 0x023d, 0x023e, 0x023f,
+         0x0300
+     ]),
+    ("progressiveList 5", ProgressiveList[SingleFieldTestStruct],
+     ProgressiveList[SingleFieldTestStruct](),
+     "",
+     h(
+         zero_hashes[0],  # terminator
+         chunk("00")  # length mix in
+     ), []),
+    ("progressiveList 6", ProgressiveList[SingleFieldTestStruct],
+     ProgressiveList[SingleFieldTestStruct](
+         SingleFieldTestStruct(A=1),
+     ),
+     "01",
+     h(
+         h(
+             chunk("01"),
+             zero_hashes[0]  # terminator
+         ),
+         chunk("01")  # length mix in
+     ), [{'A': 0x01}]),
+    ("progressiveList 7", ProgressiveList[SingleFieldTestStruct],
+     ProgressiveList[SingleFieldTestStruct](
+         SingleFieldTestStruct(A=1),
+         SingleFieldTestStruct(A=2),
+     ),
+     "0102",
+     h(
+         h(
+             chunk("01"),
+             h(
+                 merge(chunk("02"), zero_hashes[0:2]),
+                 zero_hashes[0]  # terminator
+             )
+         ),
+         chunk("02")  # length mix in
+     ), [{'A': 0x01}, {'A': 0x02}]),
+    ("progressiveList 7", ProgressiveList[SingleFieldTestStruct],
+     ProgressiveList[SingleFieldTestStruct](
+         SingleFieldTestStruct(A=1),
+         SingleFieldTestStruct(A=2),
+         SingleFieldTestStruct(A=3),
+         SingleFieldTestStruct(A=4),
+         SingleFieldTestStruct(A=5),
+     ),
+     "0102030405",
+     h(
+         h(
+             chunk("01"),
+             h(
+                 h(
+                     h(
+                         chunk("02"),
+                         chunk("03")
+                     ),
+                     h(
+                         chunk("04"),
+                         chunk("05")
+                     )
+                 ),
+                 zero_hashes[0]  # terminator
+             )
+         ),
+         chunk("05")  # length mix in
+     ), [{'A': 0x01}, {'A': 0x02}, {'A': 0x03}, {'A': 0x04}, {'A': 0x05}]),
 ]
 
 
@@ -476,6 +681,22 @@ def test_container_equality():
     assert A(1, 2, 3) != B(1, 2, 3, 0)
     assert A(1, 2, 3) in {A(1, 2, 3)}
     assert A(1, 2, 3) not in {B(1, 2, 3, 0)}
+
+
+def test_progressive():
+    class X(Container):
+        A: ProgressiveList[SingleFieldTestStruct]
+        B: ProgressiveList[uint16]
+
+    x = X(
+        A=ProgressiveList[SingleFieldTestStruct](
+            SingleFieldTestStruct(A=1),
+            SingleFieldTestStruct(A=2),
+        ),
+        B=ProgressiveList[uint16](0x0100, 0x0101),
+    )
+    x_bytes = bytes.fromhex("080000000a000000010200010101")
+    assert x.encode_bytes() == x_bytes
 
 
 def test_stable_container():

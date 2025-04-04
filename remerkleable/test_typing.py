@@ -2,7 +2,7 @@
 
 import pytest  # type: ignore
 
-from typing import Optional
+from typing import Optional, Type
 from random import Random
 
 from remerkleable.complex import Container, Vector, List
@@ -11,6 +11,7 @@ from remerkleable.basic import boolean, bit, uint, byte, uint8, uint16, uint32, 
 from remerkleable.bitfields import Bitvector, Bitlist
 from remerkleable.byte_arrays import ByteVector, Bytes1, Bytes4, Bytes8, Bytes32, Bytes48, Bytes96
 from remerkleable.core import BasicView, View
+from remerkleable.progressive import ProgressiveList
 from remerkleable.stable_container import Profile, StableContainer
 from remerkleable.union import Union
 from remerkleable.tree import get_depth, merkle_hash, LEFT_GINDEX, RIGHT_GINDEX
@@ -32,7 +33,7 @@ def test_subclasses():
     assert issubclass(boolean, BasicView)
     assert issubclass(boolean, View)
 
-    for c in [Container, List, Vector, Bytes32]:
+    for c in [Container, List, Vector, ProgressiveList, Bytes32]:
         assert issubclass(c, View)
 
 
@@ -182,9 +183,10 @@ def test_container_unpack():
     assert b == 42
 
 
-def test_list():
-    typ = List[uint64, 128]
-    assert issubclass(typ, List)
+@pytest.mark.parametrize("typ", [List[uint64, 128], ProgressiveList[uint64]])
+def test_list_1(typ: Type[View]):
+    base_typ = List if typ.type_repr().startswith("List") else ProgressiveList
+    assert issubclass(typ, base_typ)
     assert issubclass(typ, View)
     assert not issubclass(int, View)
 
@@ -202,12 +204,15 @@ def test_list():
     assert v[0] == 123
     assert isinstance(v[0], uint64)
 
-    assert isinstance(v, List)
+    assert isinstance(v, base_typ)
     assert isinstance(v, View)
 
     assert len(typ([i for i in range(10)])) == 10  # cast py list to SSZ list
 
-    foo = List[uint32, 128](0 for i in range(128))
+
+@pytest.mark.parametrize("typ", [List[uint32, 128], ProgressiveList[uint32]])
+def test_list_2(typ: Type[View]):
+    foo = typ(0 for i in range(128))
     foo[0] = 123
     foo[1] = 654
     foo[127] = 222
@@ -217,13 +222,50 @@ def test_list():
     except ValueError:
         pass
 
+    assert foo.encode_bytes().hex() == (
+        "7b0000008e020000000000000000000000000000000000000000000000000000"
+        "0000000000000000000000000000000000000000000000000000000000000000"
+        "0000000000000000000000000000000000000000000000000000000000000000"
+        "0000000000000000000000000000000000000000000000000000000000000000"
+        "0000000000000000000000000000000000000000000000000000000000000000"
+        "0000000000000000000000000000000000000000000000000000000000000000"
+        "0000000000000000000000000000000000000000000000000000000000000000"
+        "0000000000000000000000000000000000000000000000000000000000000000"
+        "0000000000000000000000000000000000000000000000000000000000000000"
+        "0000000000000000000000000000000000000000000000000000000000000000"
+        "0000000000000000000000000000000000000000000000000000000000000000"
+        "0000000000000000000000000000000000000000000000000000000000000000"
+        "0000000000000000000000000000000000000000000000000000000000000000"
+        "0000000000000000000000000000000000000000000000000000000000000000"
+        "0000000000000000000000000000000000000000000000000000000000000000"
+        "00000000000000000000000000000000000000000000000000000000de000000"
+    )
+    assert foo.hash_tree_root() == typ.decode_bytes(foo.encode_bytes()).hash_tree_root()
+
     for i in range(128):
         foo.pop()
         assert len(foo) == 128 - 1 - i
+        assert foo.hash_tree_root() == typ.decode_bytes(foo.encode_bytes()).hash_tree_root()
+
+        if i == 64:
+            assert foo.encode_bytes().hex() == (
+                "7b0000008e020000000000000000000000000000000000000000000000000000"
+                "0000000000000000000000000000000000000000000000000000000000000000"
+                "0000000000000000000000000000000000000000000000000000000000000000"
+                "0000000000000000000000000000000000000000000000000000000000000000"
+                "0000000000000000000000000000000000000000000000000000000000000000"
+                "0000000000000000000000000000000000000000000000000000000000000000"
+                "0000000000000000000000000000000000000000000000000000000000000000"
+                "00000000000000000000000000000000000000000000000000000000"
+            )
+
+    assert foo.encode_bytes().hex() == ""
+
     for i in range(128):
         foo.append(uint32(i))
         assert len(foo) == i + 1
         assert foo[i] == i
+        assert foo.hash_tree_root() == typ.decode_bytes(foo.encode_bytes()).hash_tree_root()
 
     try:
         foo[3] = uint64(2 ** 32 - 1)  # within bounds, wrong type
@@ -248,6 +290,26 @@ def test_list():
         assert False
     except IndexError:
         pass
+
+    assert foo.encode_bytes().hex() == (
+        "0000000001000000020000000300000004000000050000000600000007000000"
+        "08000000090000000a0000000b0000000c0000000d0000000e0000000f000000"
+        "1000000011000000120000001300000014000000150000001600000017000000"
+        "18000000190000001a0000001b0000001c0000001d0000001e0000001f000000"
+        "2000000021000000220000002300000024000000250000002600000027000000"
+        "28000000290000002a0000002b0000002c0000002d0000002e0000002f000000"
+        "3000000031000000320000003300000034000000350000003600000037000000"
+        "38000000390000003a0000003b0000003c0000003d0000003e0000003f000000"
+        "4000000041000000420000004300000044000000450000004600000047000000"
+        "48000000490000004a0000004b0000004c0000004d0000004e0000004f000000"
+        "5000000051000000520000005300000054000000550000005600000057000000"
+        "58000000590000005a0000005b0000005c0000005d0000005e0000005f000000"
+        "6000000061000000620000006300000064000000650000006600000067000000"
+        "68000000690000006a0000006b0000006c0000006d0000006e0000006f000000"
+        "7000000071000000720000007300000074000000750000007600000077000000"
+        "78000000790000007a0000007b0000007c0000007d0000007e0000007f000000"
+    )
+    assert foo.hash_tree_root() == typ.decode_bytes(foo.encode_bytes()).hash_tree_root()
 
 
 def test_bytesn_subclass():

@@ -1,6 +1,6 @@
 from typing import Type, cast
 from remerkleable.core import View, BackedView, BasicView
-from remerkleable.tree import Link, to_gindex
+from remerkleable.tree import Gindex, Link, to_gindex
 
 
 class SubtreeView(BackedView):
@@ -18,6 +18,10 @@ class SubtreeView(BackedView):
     def item_elem_cls(cls, i: int) -> Type[View]:
         raise NotImplementedError
 
+    @classmethod
+    def chunk_to_gindex(cls, chunk_i: int) -> Gindex:
+        return to_gindex(chunk_i, cls.tree_depth())
+
     def get(self, i: int) -> View:
         i = int(i)  # performance trick, input integers may be typed and slow
         elem_type: Type[View] = self.item_elem_cls(i)
@@ -25,11 +29,11 @@ class SubtreeView(BackedView):
         if self.is_packed():
             elems_per_chunk = 32 // elem_type.type_byte_length()
             chunk_i = i // elems_per_chunk
-            chunk = self.get_backing().getter(to_gindex(chunk_i, self.tree_depth()))
+            chunk = self.get_backing().getter(self.chunk_to_gindex(chunk_i))
             return cast(Type[BasicView], elem_type).basic_view_from_backing(chunk, i % elems_per_chunk)
         else:
             return elem_type.view_from_backing(
-                self.get_backing().getter(to_gindex(i, self.tree_depth())), lambda v: self.set(i, v))
+                self.get_backing().getter(self.chunk_to_gindex(i)), lambda v: self.set(i, v))
 
     def set(self, i: int, v: View) -> None:
         i = int(i)  # performance trick, input integers may be typed and slow
@@ -42,7 +46,7 @@ class SubtreeView(BackedView):
             if isinstance(v, BasicView):
                 elems_per_chunk = 32 // v.type_byte_length()
                 chunk_i = i // elems_per_chunk
-                target = to_gindex(chunk_i, self.tree_depth())
+                target = self.chunk_to_gindex(chunk_i)
                 chunk_setter_link: Link = self.get_backing().setter(target)
                 chunk = self.get_backing().getter(target)
                 new_chunk = v.backing_from_base(chunk, i % elems_per_chunk)
@@ -50,5 +54,5 @@ class SubtreeView(BackedView):
             else:
                 raise Exception("cannot pack subtree elements that are not basic types")
         else:
-            setter_link: Link = self.get_backing().setter(to_gindex(i, self.tree_depth()))
+            setter_link: Link = self.get_backing().setter(self.chunk_to_gindex(i))
             self.set_backing(setter_link(v.get_backing()))
