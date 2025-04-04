@@ -2,7 +2,7 @@
 # The EIP is still under review, functionality may change or go away without deprecation.
 
 from itertools import chain
-from typing import List as PyList, Optional, Type, cast
+from typing import List as PyList, Optional, Tuple, Type, cast
 from types import GeneratorType
 from remerkleable.basic import uint8, uint256
 from remerkleable.core import BasicView, ObjType, View, ViewHook, OFFSET_BYTE_LENGTH
@@ -42,7 +42,7 @@ def readonly_iter_progressive(backing: Node, length: int, elem_type: Type[View],
     )
 
 
-def to_gindex_progressive(chunk_i: int) -> tuple[Gindex, int, int]:
+def to_gindex_progressive(chunk_i: int) -> Tuple[Gindex, int, int]:
     depth = 0
     gindex = 2
     while True:
@@ -54,7 +54,7 @@ def to_gindex_progressive(chunk_i: int) -> tuple[Gindex, int, int]:
         gindex = (gindex << 1) + 1
 
 
-def to_target_progressive(elem_type: Type[View], is_packed: bool, i: int) -> tuple[Gindex, int, int]:
+def to_target_progressive(elem_type: Type[View], is_packed: bool, i: int) -> Tuple[Gindex, int, int]:
     if is_packed:
         elems_per_chunk = 32 // elem_type.type_byte_length()
         chunk_i, offset_i = divmod(i, elems_per_chunk)
