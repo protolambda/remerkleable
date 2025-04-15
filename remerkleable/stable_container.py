@@ -12,6 +12,7 @@ from remerkleable.byte_arrays import ByteList, ByteVector
 from remerkleable.complex import ComplexView, Container, FieldOffset, List, Vector, \
     decode_offset, encode_offset
 from remerkleable.core import View, ViewHook, ViewMeta, OFFSET_BYTE_LENGTH
+from remerkleable.progressive import ProgressiveList
 from remerkleable.tree import Gindex, NavigationError, Node, PairNode, \
     get_depth, subtree_fill_to_contents, zero_node, \
     RIGHT_GINDEX
@@ -404,6 +405,11 @@ class Profile(ComplexView):
                 return (
                     issubclass(ftyp_base, Vector)
                     and ftyp.vector_length() == ftyp_base.vector_length()
+                    and has_compatible_merkleization(ftyp.element_cls(), ftyp_base.element_cls())
+                )
+            if issubclass(ftyp, ProgressiveList):
+                return (
+                    issubclass(ftyp_base, ProgressiveList)
                     and has_compatible_merkleization(ftyp.element_cls(), ftyp_base.element_cls())
                 )
             if issubclass(ftyp, Container):

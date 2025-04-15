@@ -541,7 +541,7 @@ test_data = [
          ),
          chunk("02")  # length mix in
      ), [{'A': 0x01}, {'A': 0x02}]),
-    ("progressiveList 7", ProgressiveList[SingleFieldTestStruct],
+    ("progressiveList 8", ProgressiveList[SingleFieldTestStruct],
      ProgressiveList[SingleFieldTestStruct](
          SingleFieldTestStruct(A=1),
          SingleFieldTestStruct(A=2),
